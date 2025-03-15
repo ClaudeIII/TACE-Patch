@@ -1,0 +1,10 @@
+/.vs
+*.obj
+*.recipe
+*.log
+*.ipdb
+*.iobj
+/build/Release/TacePatch.tlog
+build/Release/vc143.pdb
+*.user
+*.filters
