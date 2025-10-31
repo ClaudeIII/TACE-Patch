@@ -200,9 +200,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
         auto CModelInfoStore__ms_baseModels = *pattern.get_first<CDataStore*>(8);
 
         for (size_t i = CModelInfoStore::ms_baseModels; i < CModelInfoStore::amount; i++)
-        {
-            CModelInfoStore__ms_baseModels[i].nSize *= 2;
-        }
+            CModelInfoStore__ms_baseModels[i].nSize *= 2; // limit adjuster code from FusionFix
 
         pattern = hook::pattern("89 35 ? ? ? ? 89 35 ? ? ? ? 6A 00 6A 01");
         _dwCurrentEpisode = *(int32_t**)pattern.get_first(2);
@@ -212,14 +210,12 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
 
         pattern = hook::pattern("74 ? 6A 33 E8 ? ? ? ?");
         for(size_t i = 0; i < pattern.size(); i++)
-        {
             injector::MakeCALL(pattern.get(i).get<void*>(4), CPedMoveBlendOnFoot__SetAnimGroupH);
-        }
+
         pattern = hook::pattern("5E ? 6A 32 E8 ? ? ? ?");
         for(size_t i = 0; i < pattern.size(); i++)
-        {
             injector::MakeCALL(pattern.get(i).get<void*>(4), CPedMoveBlendOnFoot__SetAnimGroupH);
-        }
+
         pattern = hook::pattern("8B 8E ? ? ? ? 6A 38 E8 ? ? ? ?");
         injector::MakeCALL(pattern.get_first(8), CPedMoveBlendOnFoot__SetAnimGroupH);
 
@@ -506,7 +502,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
             if (!pattern.empty())
                 injector::MakeNOP(pattern.get_first(7), 6, true);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 14 E8"); // parachute anims
+            pattern = hook::pattern("83 3D ? ? ? ? ? 75 14 E8"); // Parachute anims
             if (!pattern.empty())
                 injector::MakeNOP(pattern.get_first(7), 2, true);
 
@@ -689,7 +685,6 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
             pattern = hook::pattern("3B 05 ? ? ? ? 74 EE 83 3D ? ? ? ? ? 75 28"); // EpisodicVehicleSupport Boat models
             if (!pattern.empty())
                 injector::MakeNOP(pattern.get_first(15), 2, true);
-
         }
 
         /*pattern = hook::pattern("83 3D ? ? ? ? ? 8B F0 75 09"); // Achievement/Rank10 unlocks for all episodes
@@ -744,18 +739,12 @@ uint32_t GetAnimGroupIdForModel(uint32_t modelHash, eAnimGroup animGroup)
 {
     if(gAnimationOverrides.find(modelHash) != gAnimationOverrides.end())
     {
-        if(animGroup == ANIMGRP_MOVE_RPG)
-        {
-            if(CAnimMgr__HasAnimLoaded(gAnimationOverrides[modelHash].RpgAnimGroupID))
-            {
+        if ((animGroup == ANIMGRP_MOVE_RPG) && (CAnimMgr__HasAnimLoaded(gAnimationOverrides[modelHash].RpgAnimGroupID)))
                 return gAnimationOverrides[modelHash].RpgAnimGroupID;
-            }
-        }
 
-        if(CAnimMgr__HasAnimLoaded(gAnimationOverrides[modelHash].RifleAnimGroupID))
-        {
-            return gAnimationOverrides[modelHash].RifleAnimGroupID;
-        }
+        if (CAnimMgr__HasAnimLoaded(gAnimationOverrides[modelHash].RifleAnimGroupID))
+           return gAnimationOverrides[modelHash].RifleAnimGroupID;
+
     }
     
     static uint32_t moveRifle = CAnimMgr__GetAnimGroupIdByName("move_rifle");
