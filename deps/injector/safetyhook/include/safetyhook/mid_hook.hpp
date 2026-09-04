@@ -11,6 +11,7 @@ import std.compat;
 #endif
 
 #include "safetyhook/allocator.hpp"
+#include "safetyhook/common.hpp"
 #include "safetyhook/context.hpp"
 #include "safetyhook/inline_hook.hpp"
 #include "safetyhook/utility.hpp"
@@ -21,7 +22,7 @@ namespace safetyhook {
 using MidHookFn = void (*)(Context& ctx);
 
 /// @brief A mid function hook.
-class MidHook final {
+class SAFETYHOOK_API MidHook final {
 public:
     /// @brief Error type for MidHook.
     struct Error {
@@ -41,14 +42,20 @@ public:
         /// @param err The Allocator::Error that failed.
         /// @return The new BAD_ALLOCATION error.
         [[nodiscard]] static Error bad_allocation(Allocator::Error err) {
-            return {.type = BAD_ALLOCATION, .allocator_error = err};
+            Error error{};
+            error.type = BAD_ALLOCATION;
+            error.allocator_error = err;
+            return error;
         }
 
         /// @brief Create a BAD_INLINE_HOOK error.
         /// @param err The InlineHook::Error that failed.
         /// @return The new BAD_INLINE_HOOK error.
         [[nodiscard]] static Error bad_inline_hook(InlineHook::Error err) {
-            return {.type = BAD_INLINE_HOOK, .inline_hook_error = err};
+            Error error{};
+            error.type = BAD_INLINE_HOOK;
+            error.inline_hook_error = err;
+            return error;
         }
     };
 

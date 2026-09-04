@@ -1,13 +1,15 @@
 #pragma once
 
 #include <cstdint>
+#include <utility>
 #include <optional>
 #include <string>
 #include <vector>
 #include <string_view>
 #include <functional>
+#include <unordered_map>
 
-#include <Windows.h>
+#include <windows.h>
 #include <winternl.h>
 
 #include "Address.hpp"
@@ -16,6 +18,9 @@ struct _LIST_ENTRY;
 typedef struct _LIST_ENTRY LIST_ENTRY;
 
 struct _LDR_DATA_TABLE_ENTRY;
+
+typedef NTSTATUS (WINAPI* PFN_LdrLockLoaderLock)(ULONG Flags, ULONG *State, ULONG_PTR *Cookie);
+typedef NTSTATUS (WINAPI* PFN_LdrUnlockLoaderLock)(ULONG Flags, ULONG_PTR Cookie);
 
 namespace utility {
     //
@@ -43,9 +48,11 @@ namespace utility {
 
     // Note: This function doesn't validate the dll's headers so make sure you've
     // done so before calling it.
-    std::optional<uintptr_t> ptr_from_rva(uint8_t* dll, uintptr_t rva);
+    std::optional<uintptr_t> ptr_from_rva(const uint8_t* dll, uintptr_t rva, bool memory_module = false);
 
     HMODULE get_executable();
+    HMODULE get_module(const std::string& module);
+    HMODULE get_module(const std::wstring& module);
     HMODULE unlink(HMODULE module);
     HMODULE safe_unlink(HMODULE module);
     HMODULE find_partial_module(std::wstring_view name);
@@ -56,4 +63,108 @@ namespace utility {
     void spoof_module_paths_in_exe_dir();
 
     std::vector<std::wstring> get_loaded_module_names();
+
+    struct LoaderLockGuard {
+        LoaderLockGuard();
+        ~LoaderLockGuard();
+    
+    private:
+        ULONG_PTR cookie{};
+    };
+
+    struct FakeModule {
+        HMODULE module{};
+        HANDLE file_handle{};
+        HANDLE mapping_handle{};
+        bool is_virtual_alloc{};
+
+        FakeModule(HMODULE module, HANDLE file_handle, HANDLE mapping_handle, bool is_virtual_alloc = false)
+            : module{ module }
+            , file_handle{ file_handle }
+            , mapping_handle{ mapping_handle }
+            , is_virtual_alloc{ is_virtual_alloc }
+        {}
+        
+        FakeModule(const FakeModule&) = delete;
+        FakeModule& operator=(const FakeModule&) = delete;
+        FakeModule(FakeModule&& other) noexcept
+            : module{ other.module }
+            , file_handle{ other.file_handle }
+            , mapping_handle{ other.mapping_handle }
+            , is_virtual_alloc{ other.is_virtual_alloc }
+        {
+            other.module = nullptr;
+            other.file_handle = nullptr;
+            other.mapping_handle = nullptr;
+            other.is_virtual_alloc = false;
+        }
+
+        FakeModule& operator=(FakeModule&& other) noexcept {
+            if (this != &other) {
+                // Swap into `other` so its destructor releases our old resources.
+                std::swap(module, other.module);
+                std::swap(file_handle, other.file_handle);
+                std::swap(mapping_handle, other.mapping_handle);
+                std::swap(is_virtual_alloc, other.is_virtual_alloc);
+            }
+
+            return *this;
+        }
+
+        // Sets everything to null so the destructor won't clean up. 
+        // Useful if you want to keep the module around after the FakeModule goes out of scope.
+        void detach() {
+            module = nullptr;
+            file_handle = nullptr;
+            mapping_handle = nullptr;
+        }
+
+        virtual ~FakeModule();
+    };
+
+    // Maps a PE into memory without loading it, and adds it to the module list with a fake entry.
+    // Useful for being able to use our normal utilities on a PE that isn't actually loaded.
+    // Especially useful on executables because we can't call LoadLibraryExA on them correctly.
+    std::optional<FakeModule> map_view_of_pe(const std::string& path);
+
+    // Maps a Mach-O (dylib) x86_64 binary into memory with segments at correct virtual addresses.
+    // Supports fat (universal) binaries by extracting the x86_64 slice.
+    // Registers with g_module_ranges so get_module_size/get_module_within work.
+    // Use find_all_function_bounds() on the result for heuristic function boundary detection.
+    std::optional<FakeModule> map_view_of_macho(const std::string& path);
+
+    // Auto-detects PE vs Mach-O by magic bytes and calls the appropriate mapper.
+    std::optional<FakeModule> map_view_of_file(const std::string& path);
+
+    // Bidirectional import map for a PE module's IAT.
+    // name_to_addr: "kernel32.dll!IsBadReadPtr" -> IAT slot address
+    // addr_to_name: IAT slot address -> "kernel32.dll!IsBadReadPtr"
+    struct ImportMap {
+        std::unordered_map<std::string, uintptr_t> name_to_addr{};
+        std::unordered_map<uintptr_t, std::string> addr_to_name{};
+    };
+
+    std::optional<ImportMap> get_module_imports(HMODULE module);
+    // PE section descriptor.
+    struct ModuleSection {
+        std::string name;
+        uintptr_t virtual_address;   // Absolute VA (base + section VirtualAddress)
+        size_t virtual_size;         // VirtualSize
+        size_t raw_size;             // SizeOfRawData
+        uintptr_t raw_pointer;       // PointerToRawData
+        uint32_t characteristics;
+    };
+
+    std::optional<std::vector<ModuleSection>> get_module_sections(HMODULE module);
+
+    // Export table for a PE module, keyed by export name.
+    // name_to_addr: "FunctionName" -> function VA
+    // addr_to_name: function VA -> "FunctionName"
+    // Forwarded and nameless (ordinal-only) exports are not included.
+    struct ExportMap {
+        std::unordered_map<std::string, uintptr_t> name_to_addr{};
+        std::unordered_map<uintptr_t, std::string> addr_to_name{};
+    };
+
+    std::optional<ExportMap> get_module_exports(HMODULE module);
 }

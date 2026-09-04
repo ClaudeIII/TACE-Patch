@@ -20,10 +20,11 @@ impl<'a> Decoder<'a> {
     ///
     /// # Arguments
     ///
-    /// * `code` - An [u8](u8) slice that holds the code to be decoded.
+    /// * `code` - An [`u8`] slice that holds the code to be decoded.
     /// * `mode` - The mode in which to decode the instruction.
     /// * `ip` - The instruction pointer value to use when formatting the decoded instruction. Does not affect the
-    /// decoding process in any way.
+    ///     decoding process in any way.
+    #[must_use]
     pub fn new(code: &'a [u8], mode: DecodeMode, ip: u64) -> Self {
         Self {
             code,
@@ -38,7 +39,7 @@ impl<'a> Decoder<'a> {
     /// # Returns
     ///
     /// * `Some(DecodeResult)` - if there are still undecoded bytes in the given code chunk. The decoding may have
-    /// still failed. See `Remarks`.
+    ///     still failed. See `Remarks`.
     /// * `None` - if all the bytes in the given code chunk were decoded.
     ///
     /// # Remarks
@@ -82,15 +83,12 @@ impl<'a> Decoder<'a> {
         } else {
             let result =
                 DecodedInstruction::decode_with_ip(&self.code[self.offset..], self.mode, self.ip);
-            match result {
-                Ok(ins) => {
-                    self.offset += ins.length() as usize;
-                    self.ip += ins.length() as u64;
-                }
-                Err(_) => {
-                    self.offset += 1;
-                    self.ip += 1;
-                }
+            if let Ok(ins) = result {
+                self.offset += ins.length();
+                self.ip += ins.length() as u64;
+            } else {
+                self.offset += 1;
+                self.ip += 1;
             };
 
             Some(result)
@@ -99,7 +97,7 @@ impl<'a> Decoder<'a> {
 
     /// Attempts to decode the next instruction from the given code chunk.
     ///
-    /// Behaves like [`decode_next`](Decoder::decode_next), but in addition to the [`DecodeResult`](DecodeResult) it
+    /// Behaves like [`decode_next`](Decoder::decode_next), but in addition to the [`DecodeResult`] it
     /// will also return the offset from which decoding was attempted, as well as the corresponding instruction pointer.
     ///
     /// # Examples
@@ -134,7 +132,7 @@ impl<'a> Decoder<'a> {
 
     /// Attempts to decode the next instruction from the given code chunk.
     ///
-    /// Behaves like [`decode_next`](Decoder::decode_next), but in addition to the [`DecodeResult`](DecodeResult) it
+    /// Behaves like [`decode_next`](Decoder::decode_next), but in addition to the [`DecodeResult`] it
     /// will also return the offset from which decoding was attempted.
     ///
     /// # Examples
@@ -168,7 +166,7 @@ impl<'a> Decoder<'a> {
 
     /// Attempts to decode the next instruction from the given code chunk.
     ///
-    /// Behaves like [`decode_next`](Decoder::decode_next), but in addition to the [`DecodeResult`](DecodeResult) it
+    /// Behaves like [`decode_next`](Decoder::decode_next), but in addition to the [`DecodeResult`] it
     /// will also return the corresponding instruction pointer.
     ///
     /// # Examples
@@ -221,23 +219,18 @@ mod tests {
     fn decode_next() {
         let code = vec![0xb8, 0x00, 0x00, 0x00, 0x00, 0x48, 0x8b, 0xf9, 0xff, 0xff];
         let mut decoder = Decoder::new(&code, DecodeMode::Bits64, 0x1000);
-        let expected: Vec<Result<(Mnemonic, &str, &[u8]), DecodeError>> = vec![
-            Ok((
-                Mnemonic::Mov,
-                "MOV       eax, 0x00000000",
-                &[0xb8, 0x00, 0x00, 0x00, 0x00],
-            )),
-            Ok((Mnemonic::Mov, "MOV       rdi, rcx", &[0x48, 0x8b, 0xf9])),
+        let expected: Vec<Result<(Mnemonic, &str), DecodeError>> = vec![
+            Ok((Mnemonic::MOV, "MOV       eax, 0x00000000")),
+            Ok((Mnemonic::MOV, "MOV       rdi, rcx")),
             Err(DecodeError::InvalidEncoding),
             Err(DecodeError::BufferTooSmall),
         ];
         let mut exected_index = 0usize;
         while let Some(ins) = decoder.decode_next() {
             match expected[exected_index] {
-                Ok((i, s, b)) => {
+                Ok((i, s)) => {
                     let ins = ins.expect("Unable to decode");
                     assert_eq!(i, ins.mnemonic());
-                    assert_eq!(b, ins.bytes());
                     assert_eq!(s, format!("{}", ins));
                 }
                 Err(e) => {
@@ -253,23 +246,18 @@ mod tests {
     fn decoder_iter() {
         let code = vec![0xb8, 0x00, 0x00, 0x00, 0x00, 0x48, 0x8b, 0xf9, 0xff, 0xff];
         let decoder = Decoder::new(&code, DecodeMode::Bits64, 0x1000);
-        let expected: Vec<Result<(Mnemonic, &str, &[u8]), DecodeError>> = vec![
-            Ok((
-                Mnemonic::Mov,
-                "MOV       eax, 0x00000000",
-                &[0xb8, 0x00, 0x00, 0x00, 0x00],
-            )),
-            Ok((Mnemonic::Mov, "MOV       rdi, rcx", &[0x48, 0x8b, 0xf9])),
+        let expected: Vec<Result<(Mnemonic, &str), DecodeError>> = vec![
+            Ok((Mnemonic::MOV, "MOV       eax, 0x00000000")),
+            Ok((Mnemonic::MOV, "MOV       rdi, rcx")),
             Err(DecodeError::InvalidEncoding),
             Err(DecodeError::BufferTooSmall),
         ];
 
         for (index, ins) in decoder.enumerate() {
             match expected[index] {
-                Ok((i, s, b)) => {
+                Ok((i, s)) => {
                     let ins = ins.expect("Unable to decode");
                     assert_eq!(i, ins.mnemonic());
-                    assert_eq!(b, ins.bytes());
                     assert_eq!(s, format!("{}", ins));
                 }
                 Err(e) => {

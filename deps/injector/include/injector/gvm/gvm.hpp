@@ -47,7 +47,7 @@ class game_version_manager
         const char* PluginName;
         
     private:
-        char game, region, major, minor, majorRevision, minorRevision, cracker, steam;
+        char game, region, major, minor, majorRevision, minorRevision, steam;
 
     public:
         game_version_manager()
@@ -65,7 +65,7 @@ class game_version_manager
         // Clear any information about game version
         void Clear()
         {
-            game = region = major = minor = majorRevision = minorRevision = cracker = steam = 0;
+            game = region = major = minor = majorRevision = minorRevision = steam = 0;
         }
         
         // Checks if I don't know the game we are attached to
@@ -82,8 +82,6 @@ class game_version_manager
         int GetMajorRevisionVersion()	{ return majorRevision; }
         int GetMinorRevisionVersion()	{ return minorRevision; }
         
-        bool IsHoodlum()        { return cracker == 'H'; }
-        
         // Region conditions
         bool IsUS() { return region == 'U'; }
         bool IsEU() { return region == 'E'; }
@@ -99,18 +97,18 @@ class game_version_manager
         bool Detect();
         
         // Gets the game version as text, the buffer must contain at least 32 bytes of space.
-        char* GetVersionText(char* buffer)
+        char* GetVersionText(char* buffer, size_t bufsize = 32)
         {
             if(this->IsUnknown())
             {
-                strcpy(buffer, "UNKNOWN GAME");
+                snprintf(buffer, bufsize, "UNKNOWN GAME");
                 return buffer;
             }
 
             const char* g = this->IsIII() ? "III" : this->IsVC() ? "VC" : this->IsSA() ? "SA" : this->IsIV() ? "IV" : this->IsEFLC() ? "EFLC" : "UNK";
             const char* r = this->IsUS()? "US" : this->IsEU()? "EURO" : "UNK_REGION";
             const char* s = this->IsSteam()? "Steam" : "";
-            sprintf(buffer, "GTA %s %d.%d.%d.%d %s%s", g, major, minor, majorRevision, minorRevision, r, s);
+            snprintf(buffer, bufsize, "GTA %s %d.%d.%d.%d %s%s", g, major, minor, majorRevision, minorRevision, r, s);
             return buffer;
         }
 
@@ -189,11 +187,12 @@ class address_manager : public game_version_manager
             return singleton().translate(p);
         }
         
-        //
+#ifndef INJECTOR_GVM_DUMMY
         static void set_name(const char* modname)
         {
             singleton().PluginName = modname;
         }
+#endif
         
     public:
         // Functors for memory translation:

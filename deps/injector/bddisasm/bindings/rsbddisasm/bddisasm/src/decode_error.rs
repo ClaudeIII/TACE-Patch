@@ -7,7 +7,7 @@
 //!
 //! # Notes
 //!
-//! All error codes that can be returned by `bddisasm-sys` are encapsulated in the [`DecodeError`](DecodeError) enum.
+//! All error codes that can be returned by `bddisasm-sys` are encapsulated in the [`DecodeError`] enum.
 //! However, some of these are unlikely to be encountered when using this crate (for example,
 //! [`BufferOverflow`](DecodeError::BufferOverflow)) which indicates that a buffer passed to the `bddisasm` C library is
 //! not large enough.
@@ -117,6 +117,15 @@ pub enum DecodeError {
     /// Not enough space is available.
     BufferOverflow,
 
+    /// Function not supported in given mode.
+    NotSupported,
+
+    /// EVEX payload byte 3 is invalid.
+    InvalidEvexByte3,
+
+    /// EVEX.U field is invalid.
+    BadEvexU,
+
     /// Internal library error.
     InternalError(u64),
 }
@@ -181,6 +190,15 @@ impl fmt::Display for DecodeError {
             DecodeError::BufferOverflow => {
                 write!(f, "not enough space is available to format instruction")
             }
+            DecodeError::NotSupported => {
+                write!(f, "function not supported in given mode")
+            }
+            DecodeError::InvalidEvexByte3 => {
+                write!(f, "EVEX payload byte 3 is invalid.")
+            }
+            DecodeError::BadEvexU => {
+                write!(f, "EVEX.U field is invalid.")
+            }
             DecodeError::InternalError(e) => write!(f, "internal error: {}", e),
         }
     }
@@ -190,7 +208,10 @@ impl fmt::Display for DecodeError {
 impl std::error::Error for DecodeError {}
 
 pub(crate) fn status_to_error(status: ffi::NDSTATUS) -> Result<(), DecodeError> {
-    if status == ffi::ND_STATUS_SUCCESS || status == ffi::ND_STATUS_HINT_OPERAND_NOT_USED {
+    if status == ffi::ND_STATUS_SUCCESS
+        || status == ffi::ND_STATUS_HINT_OPERAND_NOT_USED
+        || status == ffi::ND_STATUS_HINT_OPERAND_NOT_PRESENT
+    {
         Ok(())
     } else {
         match status {
@@ -232,8 +253,11 @@ pub(crate) fn status_to_error(status: ffi::NDSTATUS) -> Result<(), DecodeError> 
             ffi::ND_STATUS_INVALID_PARAMETER => Err(DecodeError::InvalidParameter),
             ffi::ND_STATUS_INVALID_INSTRUX => Err(DecodeError::InvalidInstrux),
             ffi::ND_STATUS_BUFFER_OVERFLOW => Err(DecodeError::BufferOverflow),
+            ffi::ND_STATUS_NOT_SUPPORTED => Err(DecodeError::NotSupported),
+            ffi::ND_STATUS_INVALID_EVEX_BYTE3 => Err(DecodeError::InvalidEvexByte3),
+            ffi::ND_STATUS_BAD_EVEX_U => Err(DecodeError::BadEvexU),
             ffi::ND_STATUS_INTERNAL_ERROR => Err(DecodeError::InternalError(0)),
-            _ => panic!("Unexpected status: {:#x}", status),
+            _ => Err(DecodeError::InternalError(status as u64)),
         }
     }
 }

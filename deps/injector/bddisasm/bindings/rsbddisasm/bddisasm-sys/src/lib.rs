@@ -30,8 +30,8 @@ mod tests {
         let mut major: u32 = 0;
         let mut minor: u32 = 0;
         let mut revision: u32 = 0;
-        let mut build_date: *mut c_char = std::ptr::null_mut();
-        let mut build_time: *mut c_char = std::ptr::null_mut();
+        let mut build_date: *const c_char = std::ptr::null();
+        let mut build_time: *const c_char = std::ptr::null();
 
         unsafe {
             NdGetVersion(
@@ -53,7 +53,7 @@ mod tests {
 
         // There are no other asserts in this test. Enforcing a known minor version is not worth it, we mainly want to
         // see that `NdGetVersion` works.
-        assert_eq!(major, 1);
+        assert_eq!(major, 3);
     }
 
     fn do_decode(code: &[u8]) -> (INSTRUX, NDSTATUS) {
@@ -79,10 +79,7 @@ mod tests {
         let (instrux, status) = do_decode(&code);
 
         assert_eq!(status, 0, "Failed to decode instruction {:#x?}", code);
-        assert_eq!(
-            unsafe { instrux.__bindgen_anon_2.Instruction },
-            _ND_INS_CLASS::ND_INS_NOP
-        );
+        assert_eq!(instrux.Instruction, _ND_INS_CLASS::ND_INS_NOP);
     }
 
     #[test]
@@ -99,5 +96,40 @@ mod tests {
         let text = String::from_utf8(buffer.iter().map(|&c| c as u8).collect()).unwrap();
         let text = text.trim_matches(char::from(0));
         assert_eq!(text, "MOV       dword ptr [ecx], ebp");
+    }
+
+    fn do_decode_mini(code: &[u8]) -> (INSTRUX_MINI, NDSTATUS) {
+        let mut instrux: mem::MaybeUninit<INSTRUX_MINI> = mem::MaybeUninit::uninit();
+        let instrux = instrux.as_mut_ptr();
+
+        let status =
+            unsafe { NdDecodeMini(instrux, code.as_ptr(), code.len() as u64, ND_CODE_64 as u8) };
+
+        (unsafe { *instrux }, status)
+    }
+
+    #[test]
+    fn decode_mini() {
+        let code = vec![0x90];
+        let (instrux, status) = do_decode_mini(&code);
+
+        assert_eq!(status, 0, "Failed to decode instruction {:#x?}", code);
+        assert_eq!(instrux.Instruction, _ND_INS_CLASS::ND_INS_NOP);
+    }
+
+    #[test]
+    fn format_mini() {
+        let code = vec![0x89, 0x29];
+        let (instrux, status) = do_decode_mini(&code);
+
+        assert_eq!(status, 0, "Failed to decode instruction {:#x?}", code);
+
+        let mut buffer: [i8; ND_MIN_BUF_SIZE as usize] = [0; ND_MIN_BUF_SIZE as usize];
+        let status = unsafe { NdToTextMini(&instrux, 0, ND_MIN_BUF_SIZE, buffer.as_mut_ptr()) };
+        assert_eq!(status, 0, "Failed to decode format {:#x?}", code);
+
+        let text = String::from_utf8(buffer.iter().map(|&c| c as u8).collect()).unwrap();
+        let text = text.trim_matches(char::from(0));
+        assert_eq!(text, "MOV       dword ptr [rcx], ebp");
     }
 }

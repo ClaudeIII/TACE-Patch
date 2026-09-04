@@ -1,0 +1,14 @@
+{
+    "version": 1,
+    "revision": 0,
+    "rules": [
+        {
+            "primary-output": "E:\\Github\\TACE-Patch\\build\\Release\\main.obj",
+            "outputs": [
+                "E:\\Github\\TACE-Patch\\build\\Release\\main.cpp.obj.dt.module.json",
+                "E:\\Github\\TACE-Patch\\build\\Release\\main.cpp.obj.dt.d.json"
+            ],
+            "requires": []
+        }
+    ]
+}

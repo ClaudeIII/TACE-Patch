@@ -20,7 +20,7 @@ import std.compat;
 
 namespace safetyhook {
 /// @brief An inline hook.
-class InlineHook final {
+class SAFETYHOOK_API InlineHook final {
 public:
     /// @brief Error type for InlineHook.
     struct Error {
@@ -45,46 +45,71 @@ public:
         /// @param err The Allocator::Error that failed.
         /// @return The new BAD_ALLOCATION error.
         [[nodiscard]] static Error bad_allocation(Allocator::Error err) {
-            return {.type = BAD_ALLOCATION, .allocator_error = err};
+            Error error{};
+            error.type = BAD_ALLOCATION;
+            error.allocator_error = err;
+            return error;
         }
 
         /// @brief Create a FAILED_TO_DECODE_INSTRUCTION error.
         /// @param ip The IP of the problematic instruction.
         /// @return The new FAILED_TO_DECODE_INSTRUCTION error.
         [[nodiscard]] static Error failed_to_decode_instruction(uint8_t* ip) {
-            return {.type = FAILED_TO_DECODE_INSTRUCTION, .ip = ip};
+            Error error{};
+            error.type = FAILED_TO_DECODE_INSTRUCTION;
+            error.ip = ip;
+            return error;
         }
 
         /// @brief Create a SHORT_JUMP_IN_TRAMPOLINE error.
         /// @param ip The IP of the problematic instruction.
         /// @return The new SHORT_JUMP_IN_TRAMPOLINE error.
         [[nodiscard]] static Error short_jump_in_trampoline(uint8_t* ip) {
-            return {.type = SHORT_JUMP_IN_TRAMPOLINE, .ip = ip};
+            Error error{};
+            error.type = SHORT_JUMP_IN_TRAMPOLINE;
+            error.ip = ip;
+            return error;
         }
 
         /// @brief Create a IP_RELATIVE_INSTRUCTION_OUT_OF_RANGE error.
         /// @param ip The IP of the problematic instruction.
         /// @return The new IP_RELATIVE_INSTRUCTION_OUT_OF_RANGE error.
         [[nodiscard]] static Error ip_relative_instruction_out_of_range(uint8_t* ip) {
-            return {.type = IP_RELATIVE_INSTRUCTION_OUT_OF_RANGE, .ip = ip};
+            Error error{};
+            error.type = IP_RELATIVE_INSTRUCTION_OUT_OF_RANGE;
+            error.ip = ip;
+            return error;
         }
 
         /// @brief Create a UNSUPPORTED_INSTRUCTION_IN_TRAMPOLINE error.
         /// @param ip The IP of the problematic instruction.
         /// @return The new UNSUPPORTED_INSTRUCTION_IN_TRAMPOLINE error.
         [[nodiscard]] static Error unsupported_instruction_in_trampoline(uint8_t* ip) {
-            return {.type = UNSUPPORTED_INSTRUCTION_IN_TRAMPOLINE, .ip = ip};
+            Error error{};
+            error.type = UNSUPPORTED_INSTRUCTION_IN_TRAMPOLINE;
+            error.ip = ip;
+            return error;
         }
 
         /// @brief Create a FAILED_TO_UNPROTECT error.
         /// @param ip The IP of the problematic instruction.
         /// @return The new FAILED_TO_UNPROTECT error.
-        [[nodiscard]] static Error failed_to_unprotect(uint8_t* ip) { return {.type = FAILED_TO_UNPROTECT, .ip = ip}; }
+        [[nodiscard]] static Error failed_to_unprotect(uint8_t* ip) {
+            Error error{};
+            error.type = FAILED_TO_UNPROTECT;
+            error.ip = ip;
+            return error;
+        }
 
         /// @brief Create a NOT_ENOUGH_SPACE error.
         /// @param ip The IP of the problematic instruction.
         /// @return The new NOT_ENOUGH_SPACE error.
-        [[nodiscard]] static Error not_enough_space(uint8_t* ip) { return {.type = NOT_ENOUGH_SPACE, .ip = ip}; }
+        [[nodiscard]] static Error not_enough_space(uint8_t* ip) {
+            Error error{};
+            error.type = NOT_ENOUGH_SPACE;
+            error.ip = ip;
+            return error;
+        }
     };
 
     /// @brief Flags for InlineHook.
@@ -211,10 +236,17 @@ public:
     /// @param ...args The arguments to pass to the function.
     /// @return The result of calling the original function.
     /// @note This function will use the __thiscall calling convention.
+#if SAFETYHOOK_COMPILER_GCC
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wattributes"
+#endif
     template <typename RetT = void, typename... Args> RetT thiscall(Args... args) {
         std::scoped_lock lock{m_mutex};
         return m_trampoline ? original<RetT(SAFETYHOOK_THISCALL*)(Args...)>()(args...) : RetT();
     }
+#if SAFETYHOOK_COMPILER_GCC
+#pragma GCC diagnostic pop
+#endif
 
     /// @brief Calls the original function.
     /// @tparam RetT The return type of the function.
@@ -270,9 +302,16 @@ public:
     /// @note This function will use the __thiscall calling convention.
     /// @note This function is unsafe because it doesn't lock the mutex. Only use this if you don't care about unhook
     /// safety or are worried about the performance cost of locking the mutex.
+#if SAFETYHOOK_COMPILER_GCC
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wattributes"
+#endif
     template <typename RetT = void, typename... Args> RetT unsafe_thiscall(Args... args) {
         return original<RetT(SAFETYHOOK_THISCALL*)(Args...)>()(args...);
     }
+#if SAFETYHOOK_COMPILER_GCC
+#pragma GCC diagnostic pop
+#endif
 
     /// @brief Calls the original function.
     /// @tparam RetT The return type of the function.

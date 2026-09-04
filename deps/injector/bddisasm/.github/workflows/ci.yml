@@ -3,98 +3,117 @@ name: C/C++ CI
 on:
   push:
     branches: [ master ]
-    paths-ignore: 
+    paths-ignore:
       - '*.md'
       - 'docs/**'
       - 'isagenerator/**'
-      - 'bddisasm_test/**'
-      - 'bdshemu_test/**'
       - 'LICENSE'
   pull_request:
     branches: [ master ]
-    paths-ignore: 
+    paths-ignore:
       - '*.md'
       - 'docs/**'
       - 'isagenerator/**'
-      - 'bddisasm_test/**'
-      - 'bdshemu_test/**'
       - 'LICENSE'
   release:
     types: [published]
-  
+
 
 jobs:
   Linux-build:
 
     runs-on: ubuntu-latest
 
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: ["debug-sanitizers", "no-mnemonic", "release"]
+
+    permissions:
+      attestations: write
+      id-token: write
+      contents: write
+
     steps:
-    - uses: actions/checkout@v2
-    - name: Install rapidjson
-      uses: actions/checkout@master
-      with:
-        repository: Tencent/rapidjson
-        path: rapidjson
-    - name: Build dependencies
+    - uses: actions/checkout@v4
+    - name: Configure CMake
+      run: cmake --preset ${{ matrix.preset }} -DCMAKE_INSTALL_PREFIX=/usr
+    - name: Build
       run: |
-        cd rapidjson
-        mkdir build
-        cd build
-        cmake ..
-        make -j$(nproc)
-        sudo make install
-        cd ..
-        cd ..
-    - name: Build all
-      run: |
-        mkdir build
-        cd build
-        cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
-        make -j$(nproc)
+        cd ./build/${{ matrix.preset }}
+        make -j$(nproc) 
         cd -
+    - name: Test bddisasm
+      if: ${{ matrix.preset != 'no-mnemonic' }}
+      run: python3 ./tests/main.py --disasm ./build/${{ matrix.preset }}/disasmtool/disasmtool --conf ./bddisasm_test/conf-x86.json
+    - name: Test bdshemu
+      if: ${{ matrix.preset != 'no-mnemonic' }}
+      run: python3 ./tests/main.py --disasm ./build/${{ matrix.preset }}/disasmtool/disasmtool --conf ./bdshemu_test/conf-x86.json
     - name: Install
+      if: ${{ matrix.preset == 'release' }}
       run: |
-        cd build
+        cd ./build/${{ matrix.preset }}
         sudo make install
         cd -
-    - name: Install setuptools
+    - name: Build pybddisasm
+      if: ${{ matrix.preset == 'release' }}
       run: |
         python3 -m pip install --upgrade pip
         python3 -m pip install setuptools
-    - name: Build pybddisasm
-      run: |
         cd bindings/pybddisasm
         python3 setup.py build
         cd -
     - name: Create package
-      if: ${{ github.event_name == 'release' }}
+      if: ${{ github.event_name == 'release' && matrix.preset == 'release' }}
       run: |
-        cd build
+        cd ./build/${{ matrix.preset }}
         sudo make package
         cd -
-    - name: Release
-      if: ${{ github.event_name == 'release' }}
-      uses: AButler/upload-release-assets@v2.0
+    - name: Attest Build Provenance
+      if: ${{ github.event_name == 'release' && matrix.preset == 'release' }}
+      uses: actions/attest-build-provenance@v1.1.0
       with:
-        files: 'build/*.deb'
+        subject-path: |
+          build/${{ matrix.preset }}/disasmtool/disasmtool
+          build/${{ matrix.preset }}/*.a
+          build/${{ matrix.preset }}/*.deb
+    - name: Release
+      if: ${{ github.event_name == 'release' && matrix.preset == 'release' }}
+      uses: AButler/upload-release-assets@3d6774fae0ed91407dc5ae29d576b166536d1777 # v3.0
+      with:
+        files: 'build/${{ matrix.preset }}/*.deb'
         repo-token: ${{ secrets.GITHUB_TOKEN }}
 
   Windows-msbuild:
 
     runs-on: windows-latest
 
+    permissions:
+      attestations: write
+      id-token: write
+      contents: write
+
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
     - name: Add msbuild to PATH
-      uses: microsoft/setup-msbuild@v1.0.2
+      uses: microsoft/setup-msbuild@v2
     - name: Setup Windows SDK
-      uses: fbactions/setup-winsdk@v1
+      uses: fbactions/setup-winsdk@808cfabb8fbe8537bcb677beb136682c9e712aff # v2
       with:
         winsdk-build-version: 18362
     - name: Build all
       run: MSBuild /t:Rebuild /p:Configuration=Release /p:Platform=x64 bddisasm.sln
     - name: Build bddisasm and bdshemu for Win32
       run: MSBuild /t:Rebuild /p:Configuration=Release /p:Platform=Win32 bddisasm.sln
+    - name: Test bddisasm Win32
+      run: python3 tests\main.py --disasm bin\Win32\Release\disasmtool.exe --conf bddisasm_test\conf-x86.json
+    - name: Test bdshemu Win32
+      run: python3 tests\main.py --disasm bin\Win32\Release\disasmtool.exe --conf bdshemu_test\conf-x86.json
+    - name: Test bddisasm x64
+      run: python3 tests\main.py --disasm bin\x64\Release\disasmtool.exe --conf bddisasm_test\conf-x86.json
+    - name: Test bdshemu x64
+      run: python3 tests\main.py --disasm bin\x64\Release\disasmtool.exe --conf bdshemu_test\conf-x86.json
     - name: Zip binaries
       if: ${{ github.event_name == 'release' }}
       run: |
@@ -106,24 +125,31 @@ jobs:
         del bin\Win32\Release\*.ipdb
         tar.exe -acf x64-windows-release.zip bin\x64\Release
         tar.exe -acf x86-windows-release.zip bin\Win32\Release
+    - name: Attest Build Provenance
+      if: ${{ github.event_name == 'release' }}
+      uses: actions/attest-build-provenance@v1.1.0
+      with:
+        subject-path: |
+          bin\**\Release\*
+          *-windows-release.zip
     - name: Release
       if: ${{ github.event_name == 'release' }}
-      uses: AButler/upload-release-assets@v2.0
+      uses: AButler/upload-release-assets@3d6774fae0ed91407dc5ae29d576b166536d1777 # v3.0
       with:
         files: 'x64-windows-release.zip;x86-windows-release.zip'
         repo-token: ${{ secrets.GITHUB_TOKEN }}
-        
+
   Windows-cmake-build:
 
     runs-on: windows-latest
 
     permissions: read-all
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Add msbuild to PATH
-      uses: microsoft/setup-msbuild@v1.0.2
-    - uses: ilammy/msvc-dev-cmd@v1
-    - uses: seanmiddleditch/gha-setup-ninja@master
+      uses: microsoft/setup-msbuild@v2
+    - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
+    - uses: seanmiddleditch/gha-setup-ninja@3b1f8f94a2f8254bd26914c4ab9474d4f0015f67 # master
     - name: Build all
       run: |
         mkdir build
@@ -132,17 +158,55 @@ jobs:
         ninja
         cd -
 
+  Windows-clang-build:
+
+    runs-on: windows-latest
+
+    permissions: read-all
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Clang
+      uses: egor-tensin/setup-clang@ef434b41eb33a70396fb336b1bae39c76d740c3d # v1.4
+    - uses: seanmiddleditch/gha-setup-ninja@3b1f8f94a2f8254bd26914c4ab9474d4f0015f67 # master
+    - name: Build libs
+      run: |
+        mkdir build
+        cd build
+        cmake .. -G Ninja -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+        # disasmtool can not be built with clang on Windows at the moment.
+        ninja bddisasm bdshemu
+        cd -
+
+  Macos-build:
+
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+    - name: Build all
+      run: |
+        mkdir build
+        cd build
+        cmake .. -DCMAKE_BUILD_TYPE=Release -DBDD_ASAN=ON -DBDD_UBSAN=ON
+        make -j$(nproc)
+        cd -
+    - name: Test bddisasm
+      run: python3 ./tests/main.py --disasm ./build/disasmtool/disasmtool --conf ./bddisasm_test/conf-x86.json
+    - name: Test bdshemu
+      run: python3 ./tests/main.py --disasm ./build/disasmtool/disasmtool --conf ./bdshemu_test/conf-x86.json
+
   Code-checks:
 
     runs-on: ubuntu-latest
 
     permissions: read-all
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Install cppcheck
       run: sudo apt install -y cppcheck
     - name: Run cppcheck
       run: cppcheck --error-exitcode=1 --language=c \
-        --enable=all --suppress=missingIncludeSystem --suppress=unusedStructMember --suppress=unusedFunction \
+        --enable=all --suppress=missingIncludeSystem --suppress=unusedStructMember --suppress=unusedFunction --suppress=objectIndex \
         -I inc/ -I bddisasm/include bddisasm/ bdshemu/ \
          /

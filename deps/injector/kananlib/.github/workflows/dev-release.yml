@@ -1,13 +1,13 @@
 name: Dev Release
-on: [push, workflow_dispatch]
+on: [push, pull_request, workflow_dispatch]
 env:
   BUILD_TYPE: Release
 jobs:
-  dev-release:
+  build:
     runs-on: windows-latest
     strategy:
       matrix:
-        target: [kananlib]
+        target: [kananlib, kananlib-nolog]
     steps:
       - name: Checkout
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
@@ -16,8 +16,131 @@ jobs:
           persist-credentials: false
 
       - name: Configure CMake
-        run: cmake -S ${{github.workspace}} -B ${{github.workspace}}/build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+        run: cmake -S ${{github.workspace}} -B ${{github.workspace}}/build -G "Visual Studio 18 2026" -A x64 -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
 
-      - name: Build backend
+      - name: Build
         run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}} --target ${{matrix.target}}
 
+  test:
+    runs-on: windows-latest
+    needs: build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Configure CMake
+        run: cmake -S ${{github.workspace}}/test -B ${{github.workspace}}/test/build -G "Visual Studio 18 2026" -A x64 -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+
+      - name: Build all tests
+        run: cmake --build ${{github.workspace}}/test/build --config ${{env.BUILD_TYPE}}
+
+      - name: Run all tests
+        run: ctest --test-dir ${{github.workspace}}/test/build -C ${{env.BUILD_TYPE}} --output-on-failure
+
+  build-x86:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        target: [kananlib, kananlib-nolog]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Configure CMake
+        run: cmake -S ${{github.workspace}} -B ${{github.workspace}}/build32 -G "Visual Studio 18 2026" -A Win32 -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+
+      - name: Build
+        run: cmake --build ${{github.workspace}}/build32 --config ${{env.BUILD_TYPE}} --target ${{matrix.target}}
+
+  test-x86:
+    runs-on: windows-latest
+    needs: build-x86
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Configure CMake
+        run: cmake -S ${{github.workspace}}/test -B ${{github.workspace}}/test/build32 -G "Visual Studio 18 2026" -A Win32 -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+
+      - name: Build all tests
+        run: cmake --build ${{github.workspace}}/test/build32 --config ${{env.BUILD_TYPE}}
+
+      - name: Run all tests
+        run: ctest --test-dir ${{github.workspace}}/test/build32 -C ${{env.BUILD_TYPE}} --output-on-failure
+
+  # Non-blocking: clang-cl is a supported compiler but the clang/MSVC-STL pairing
+  # on the GitHub runner can drift independently of our code. Keep this lane
+  # informational (continue-on-error) until it proves stable, then promote it to
+  # a required check. Uses the VS-bundled clang-cl toolset (-T ClangCL) so the
+  # STL version matches the toolchain.
+  test-clang:
+    runs-on: windows-latest
+    needs: build
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Configure CMake (clang-cl)
+        run: cmake -S ${{github.workspace}}/test -B ${{github.workspace}}/test/build-clang -G "Visual Studio 18 2026" -A x64 -T ClangCL -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+
+      - name: Build all tests (clang-cl)
+        run: cmake --build ${{github.workspace}}/test/build-clang --config ${{env.BUILD_TYPE}}
+
+      - name: Run all tests (clang-cl)
+        run: ctest --test-dir ${{github.workspace}}/test/build-clang -C ${{env.BUILD_TYPE}} --output-on-failure
+
+  build-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [kananlib, kananlib-nolog, kananlib-cli]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install toolchain
+        run: sudo apt-get update && sudo apt-get install -y clang ninja-build
+
+      - name: Configure CMake
+        run: cmake -S ${{github.workspace}} -B ${{github.workspace}}/build -G Ninja -DKANANLIB_STANDALONE_BUILD=ON -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+
+      - name: Build
+        run: cmake --build ${{github.workspace}}/build --target ${{matrix.target}}
+
+  test-linux:
+    runs-on: ubuntu-latest
+    needs: build-linux
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install toolchain
+        run: sudo apt-get update && sudo apt-get install -y clang ninja-build
+
+      - name: Configure CMake
+        run: cmake -S ${{github.workspace}}/test -B ${{github.workspace}}/test/build -G Ninja -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+
+      - name: Build all tests
+        run: cmake --build ${{github.workspace}}/test/build
+
+      - name: Run all tests
+        run: ctest --test-dir ${{github.workspace}}/test/build --output-on-failure

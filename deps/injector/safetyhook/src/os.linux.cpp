@@ -3,6 +3,7 @@
 #if SAFETYHOOK_OS_LINUX
 
 #include <cstdio>
+#include <limits>
 
 #include <sys/mman.h>
 #include <unistd.h>
@@ -82,6 +83,8 @@ std::expected<uint32_t, OsError> vm_protect(uint8_t* address, size_t size, uint3
 
     auto* addr = align_down(address, static_cast<size_t>(sysconf(_SC_PAGESIZE)));
 
+    size = size + static_cast<size_t>(address - addr);
+
     if (mprotect(addr, size, static_cast<int>(protect)) == -1) {
         return std::unexpected{OsError::FAILED_TO_PROTECT};
     }
@@ -101,8 +104,8 @@ std::expected<VmBasicInfo, OsError> vm_query(uint8_t* address) {
     unsigned long end;
     char perms[5];
     unsigned long offset;
-    int dev_major;
-    int dev_minor;
+    unsigned int dev_major;
+    unsigned int dev_minor;
     unsigned long inode;
     char path[256];
     unsigned long last_end =
@@ -113,16 +116,14 @@ std::expected<VmBasicInfo, OsError> vm_query(uint8_t* address) {
     while (fgets(line, sizeof(line), maps) != nullptr) {
         path[0] = '\0';
 
-        sscanf(line, "%lx-%lx %4s %lx %x:%x %lu %255[^\n]", &start, &end, perms, &offset, &dev_major, &dev_minor,
-            &inode, path);
+        if (sscanf(line, "%lx-%lx %4s %lx %x:%x %lu %255[^\n]", &start, &end, perms, &offset, &dev_major, &dev_minor,
+                &inode, path) < 7) {
+            continue;
+        }
 
         if (last_end < start && addr >= last_end && addr < start) {
-            info = {
-                .address = reinterpret_cast<uint8_t*>(last_end),
-                .size = start - last_end,
-                .access = VmAccess{},
-                .is_free = true,
-            };
+            info = std::make_optional<VmBasicInfo>(
+                {reinterpret_cast<uint8_t*>(last_end), start - last_end, VmAccess{}, true});
 
             break;
         }
@@ -130,12 +131,7 @@ std::expected<VmBasicInfo, OsError> vm_query(uint8_t* address) {
         last_end = end;
 
         if (addr >= start && addr < end) {
-            info = {
-                .address = reinterpret_cast<uint8_t*>(start),
-                .size = end - start,
-                .access = VmAccess{},
-                .is_free = false,
-            };
+            info = std::make_optional<VmBasicInfo>({reinterpret_cast<uint8_t*>(start), end - start, VmAccess{}, false});
 
             if (perms[0] == 'r') {
                 info->access.read = true;
@@ -177,12 +173,17 @@ bool vm_is_executable(uint8_t* address) {
 SystemInfo system_info() {
     auto page_size = static_cast<uint32_t>(sysconf(_SC_PAGESIZE));
 
-    return {
-        .page_size = page_size,
-        .allocation_granularity = page_size,
-        .min_address = reinterpret_cast<uint8_t*>(0x10000),
-        .max_address = reinterpret_cast<uint8_t*>(1ull << 47),
-    };
+    SystemInfo info{};
+    info.page_size = page_size;
+    info.allocation_granularity = page_size;
+    info.min_address = reinterpret_cast<uint8_t*>(0x10000);
+#if SAFETYHOOK_ARCH_X86_64
+    info.max_address = reinterpret_cast<uint8_t*>(uintptr_t{1} << 47);
+#elif SAFETYHOOK_ARCH_X86_32
+    info.max_address = reinterpret_cast<uint8_t*>(std::numeric_limits<uintptr_t>::max());
+#endif
+
+    return info;
 }
 
 void trap_threads([[maybe_unused]] uint8_t* from, [[maybe_unused]] uint8_t* to, [[maybe_unused]] size_t len,

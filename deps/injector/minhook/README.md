@@ -4,9 +4,16 @@
 
 The Minimalistic x86/x64 API Hooking Library for Windows
 
-http://www.codeproject.com/KB/winsdk/LibMinHook.aspx
+[https://www.codeproject.com/articles/MinHook-The-Minimalistic-x-x-API-Hooking-Libra](https://web.archive.org/web/20260130063806/https://www.codeproject.com/articles/MinHook-The-Minimalistic-x-x-API-Hooking-Libra#comments-section)
 
 ### Version history
+
+- **v1.3.4 - 28 Mar 2025**
+  * Improved error handling for enumerating and suspending threads.
+  * Visual Studio 2022 support.
+  * CMake support.
+  * Fixed compilation with Clang.
+  * Fixed compilation as C++ code.
 
 - **v1.3.3 - 8 Jan 2017**
   * Added a helper function ```MH_CreateHookApiEx```. (Thanks to asm256)

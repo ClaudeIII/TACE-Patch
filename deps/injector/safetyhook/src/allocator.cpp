@@ -225,7 +225,7 @@ std::expected<uint8_t*, Allocator::Error> Allocator::allocate_nearby_memory(
 
     // Search backwards from the desired_address.
     for (auto p = desired_address; p > search_start && in_range(p, desired_addresses, max_distance);
-         p = align_down(mbi.address - 1, si.allocation_granularity)) {
+        p = align_down(mbi.address - 1, si.allocation_granularity)) {
         auto result = vm_query(p);
 
         if (!result) {
@@ -266,7 +266,7 @@ std::expected<uint8_t*, Allocator::Error> Allocator::allocate_nearby_memory(
 }
 
 bool Allocator::in_range(uint8_t* address, const std::vector<uint8_t*>& desired_addresses, size_t max_distance) {
-    return std::ranges::all_of(desired_addresses, [&](const auto& desired_address) {
+    return std::all_of(desired_addresses.begin(), desired_addresses.end(), [&](const auto& desired_address) {
         const size_t delta = (address > desired_address) ? address - desired_address : desired_address - address;
         return delta <= max_distance;
     });

@@ -16,8 +16,18 @@ import std.compat;
 #include "safetyhook/utility.hpp"
 
 namespace safetyhook {
+/// @brief Number of ABI-specific non-function entries preceding the first virtual function pointer
+/// in the vtable layout for the current compiler/ABI.
+#if SAFETYHOOK_ABI_MSVC
+constexpr size_t VMT_HEADER = 1; // RTTICompleteObjectLocator*
+#elif SAFETYHOOK_ABI_ITANIUM
+constexpr size_t VMT_HEADER = 2; // offset-to-top + RTTI ptr
+#else
+constexpr size_t VMT_HEADER = 0;
+#endif
+
 /// @brief A hook class that allows for hooking a single method in a VMT.
-class VmHook final {
+class SAFETYHOOK_API VmHook final {
 public:
     VmHook() = default;
     VmHook(const VmHook&) = delete;
@@ -56,9 +66,16 @@ public:
     /// @tparam Args The argument types of the method.
     /// @param args The arguments to pass to the method.
     /// @return The return value of the method.
+#if SAFETYHOOK_COMPILER_GCC
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wattributes"
+#endif
     template <typename RetT = void, typename... Args> RetT thiscall(Args... args) {
         return original<RetT(SAFETYHOOK_THISCALL*)(Args...)>()(args...);
     }
+#if SAFETYHOOK_COMPILER_GCC
+#pragma GCC diagnostic pop
+#endif
 
     /// @brief Calls the original method with the __stdcall calling convention.
     /// @tparam RetT The return type of the method.
@@ -92,7 +109,7 @@ private:
 };
 
 /// @brief A hook class that copies an entire VMT for a given object and replaces it.
-class VmtHook final {
+class SAFETYHOOK_API VmtHook final {
 public:
     /// @brief Error type for VmtHook.
     struct Error {
@@ -110,7 +127,10 @@ public:
         /// @param err The Allocator::Error that failed.
         /// @return The new BAD_ALLOCATION error.
         [[nodiscard]] static Error bad_allocation(Allocator::Error err) {
-            return {.type = BAD_ALLOCATION, .allocator_error = err};
+            Error error{};
+            error.type = BAD_ALLOCATION;
+            error.allocator_error = err;
+            return error;
         }
     };
 
@@ -144,7 +164,7 @@ public:
     template <typename T> [[nodiscard]] std::expected<VmHook, Error> hook_method(size_t index, T new_function) {
         VmHook hook{};
 
-        ++index; // Skip RTTI pointer.
+        index += VMT_HEADER; // Skip RTTI header.
         hook.m_original_vm = m_new_vmt[index];
         store(reinterpret_cast<uint8_t*>(&hook.m_new_vm), new_function);
         hook.m_vmt_entry = &m_new_vmt[index];

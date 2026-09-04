@@ -4,6 +4,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -17,12 +18,13 @@
         Operand: 1, Acc:  R-,  Type:   Register, Size:  8, RawSize:  8, Encoding: A, RegType:             Mask, RegSize:  8, RegId: 0, RegCount: 1
         Operand: 2, Acc:  R-,  Type:   Register, Size: 64, RawSize: 64, Encoding: M, RegType:           Vector, RegSize: 64, RegId: 31, RegCount: 1
 
-0000000000000006 6202fd18c8c7                    VEXP2PD   zmm24, zmm31, {sae}
+0000000000000006 6202fd18c8c7                    VEXP2PD   zmm24, zmm31{sae}
         DSIZE: 64, ASIZE: 64, VLEN: 512
         ISA Set: AVX512ER, Ins cat: KNL, CET tracked: no
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -42,6 +44,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -62,6 +65,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -83,6 +87,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -103,6 +108,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -123,6 +129,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -137,12 +144,13 @@
         Operand: 1, Acc:  R-,  Type:   Register, Size:  8, RawSize:  8, Encoding: A, RegType:             Mask, RegSize:  8, RegId: 5, RegCount: 1
         Operand: 2, Acc:  R-,  Type:   Register, Size: 64, RawSize: 64, Encoding: M, RegType:           Vector, RegSize: 64, RegId: 31, RegCount: 1
 
-000000000000002E 6202fd1dc8c7                    VEXP2PD   zmm24{k5}, zmm31, {sae}
+000000000000002E 6202fd1dc8c7                    VEXP2PD   zmm24{k5}, zmm31{sae}
         DSIZE: 64, ASIZE: 64, VLEN: 512
         ISA Set: AVX512ER, Ins cat: KNL, CET tracked: no
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -163,6 +171,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -184,6 +193,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -206,6 +216,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -227,6 +238,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -248,6 +260,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -263,12 +276,13 @@
         Operand: 1, Acc:  R-,  Type:   Register, Size:  8, RawSize:  8, Encoding: A, RegType:             Mask, RegSize:  8, RegId: 5, RegCount: 1
         Operand: 2, Acc:  R-,  Type:   Register, Size: 64, RawSize: 64, Encoding: M, RegType:           Vector, RegSize: 64, RegId: 31, RegCount: 1
 
-0000000000000056 6202fd9dc8c7                    VEXP2PD   zmm24{k5}{z}, zmm31, {sae}
+0000000000000056 6202fd9dc8c7                    VEXP2PD   zmm24{k5}{z}, zmm31{sae}
         DSIZE: 64, ASIZE: 64, VLEN: 512
         ISA Set: AVX512ER, Ins cat: KNL, CET tracked: no
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -290,6 +304,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -312,6 +327,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -335,6 +351,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -357,6 +374,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -379,6 +397,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -392,12 +411,13 @@
         Operand: 1, Acc:  R-,  Type:   Register, Size:  8, RawSize:  8, Encoding: A, RegType:             Mask, RegSize:  8, RegId: 0, RegCount: 1
         Operand: 2, Acc:  R-,  Type:   Register, Size: 64, RawSize: 64, Encoding: M, RegType:           Vector, RegSize: 64, RegId: 31, RegCount: 1
 
-000000000000007E 62027d18c8c7                    VEXP2PS   zmm24, zmm31, {sae}
+000000000000007E 62027d18c8c7                    VEXP2PS   zmm24, zmm31{sae}
         DSIZE: 32, ASIZE: 64, VLEN: 512
         ISA Set: AVX512ER, Ins cat: KNL, CET tracked: no
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -417,6 +437,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -437,6 +458,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -458,6 +480,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -478,6 +501,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -498,6 +522,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -512,12 +537,13 @@
         Operand: 1, Acc:  R-,  Type:   Register, Size:  8, RawSize:  8, Encoding: A, RegType:             Mask, RegSize:  8, RegId: 5, RegCount: 1
         Operand: 2, Acc:  R-,  Type:   Register, Size: 64, RawSize: 64, Encoding: M, RegType:           Vector, RegSize: 64, RegId: 31, RegCount: 1
 
-00000000000000A6 62027d1dc8c7                    VEXP2PS   zmm24{k5}, zmm31, {sae}
+00000000000000A6 62027d1dc8c7                    VEXP2PS   zmm24{k5}, zmm31{sae}
         DSIZE: 32, ASIZE: 64, VLEN: 512
         ISA Set: AVX512ER, Ins cat: KNL, CET tracked: no
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -538,6 +564,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -559,6 +586,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -581,6 +609,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -602,6 +631,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -623,6 +653,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -638,12 +669,13 @@
         Operand: 1, Acc:  R-,  Type:   Register, Size:  8, RawSize:  8, Encoding: A, RegType:             Mask, RegSize:  8, RegId: 5, RegCount: 1
         Operand: 2, Acc:  R-,  Type:   Register, Size: 64, RawSize: 64, Encoding: M, RegType:           Vector, RegSize: 64, RegId: 31, RegCount: 1
 
-00000000000000CE 62027d9dc8c7                    VEXP2PS   zmm24{k5}{z}, zmm31, {sae}
+00000000000000CE 62027d9dc8c7                    VEXP2PS   zmm24{k5}{z}, zmm31{sae}
         DSIZE: 32, ASIZE: 64, VLEN: 512
         ISA Set: AVX512ER, Ins cat: KNL, CET tracked: no
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -665,6 +697,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -687,6 +720,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -710,6 +744,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -732,6 +767,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IO
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -754,6 +790,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -767,12 +804,13 @@
         Operand: 1, Acc:  R-,  Type:   Register, Size:  8, RawSize:  8, Encoding: A, RegType:             Mask, RegSize:  8, RegId: 0, RegCount: 1
         Operand: 2, Acc:  R-,  Type:   Register, Size: 64, RawSize: 64, Encoding: M, RegType:           Vector, RegSize: 64, RegId: 31, RegCount: 1
 
-00000000000000F6 6202fd18cac7                    VRCP28PD  zmm24, zmm31, {sae}
+00000000000000F6 6202fd18cac7                    VRCP28PD  zmm24, zmm31{sae}
         DSIZE: 64, ASIZE: 64, VLEN: 512
         ISA Set: AVX512ER, Ins cat: KNL, CET tracked: no
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -792,6 +830,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -812,6 +851,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -833,6 +873,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -853,6 +894,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -873,6 +915,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -887,12 +930,13 @@
         Operand: 1, Acc:  R-,  Type:   Register, Size:  8, RawSize:  8, Encoding: A, RegType:             Mask, RegSize:  8, RegId: 5, RegCount: 1
         Operand: 2, Acc:  R-,  Type:   Register, Size: 64, RawSize: 64, Encoding: M, RegType:           Vector, RegSize: 64, RegId: 31, RegCount: 1
 
-000000000000011E 6202fd1dcac7                    VRCP28PD  zmm24{k5}, zmm31, {sae}
+000000000000011E 6202fd1dcac7                    VRCP28PD  zmm24{k5}, zmm31{sae}
         DSIZE: 64, ASIZE: 64, VLEN: 512
         ISA Set: AVX512ER, Ins cat: KNL, CET tracked: no
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -913,6 +957,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -934,6 +979,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -956,6 +1002,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -977,6 +1024,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -998,6 +1046,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1013,12 +1062,13 @@
         Operand: 1, Acc:  R-,  Type:   Register, Size:  8, RawSize:  8, Encoding: A, RegType:             Mask, RegSize:  8, RegId: 5, RegCount: 1
         Operand: 2, Acc:  R-,  Type:   Register, Size: 64, RawSize: 64, Encoding: M, RegType:           Vector, RegSize: 64, RegId: 31, RegCount: 1
 
-0000000000000146 6202fd9dcac7                    VRCP28PD  zmm24{k5}{z}, zmm31, {sae}
+0000000000000146 6202fd9dcac7                    VRCP28PD  zmm24{k5}{z}, zmm31{sae}
         DSIZE: 64, ASIZE: 64, VLEN: 512
         ISA Set: AVX512ER, Ins cat: KNL, CET tracked: no
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1040,6 +1090,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1062,6 +1113,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1085,6 +1137,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1107,6 +1160,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1129,6 +1183,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1142,12 +1197,13 @@
         Operand: 1, Acc:  R-,  Type:   Register, Size:  8, RawSize:  8, Encoding: A, RegType:             Mask, RegSize:  8, RegId: 0, RegCount: 1
         Operand: 2, Acc:  R-,  Type:   Register, Size: 64, RawSize: 64, Encoding: M, RegType:           Vector, RegSize: 64, RegId: 31, RegCount: 1
 
-000000000000016E 62027d18cac7                    VRCP28PS  zmm24, zmm31, {sae}
+000000000000016E 62027d18cac7                    VRCP28PS  zmm24, zmm31{sae}
         DSIZE: 32, ASIZE: 64, VLEN: 512
         ISA Set: AVX512ER, Ins cat: KNL, CET tracked: no
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1167,6 +1223,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1187,6 +1244,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1208,6 +1266,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1228,6 +1287,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1248,6 +1308,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1262,12 +1323,13 @@
         Operand: 1, Acc:  R-,  Type:   Register, Size:  8, RawSize:  8, Encoding: A, RegType:             Mask, RegSize:  8, RegId: 5, RegCount: 1
         Operand: 2, Acc:  R-,  Type:   Register, Size: 64, RawSize: 64, Encoding: M, RegType:           Vector, RegSize: 64, RegId: 31, RegCount: 1
 
-0000000000000196 62027d1dcac7                    VRCP28PS  zmm24{k5}, zmm31, {sae}
+0000000000000196 62027d1dcac7                    VRCP28PS  zmm24{k5}, zmm31{sae}
         DSIZE: 32, ASIZE: 64, VLEN: 512
         ISA Set: AVX512ER, Ins cat: KNL, CET tracked: no
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1288,6 +1350,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1309,6 +1372,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1331,6 +1395,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1352,6 +1417,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1373,6 +1439,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1388,12 +1455,13 @@
         Operand: 1, Acc:  R-,  Type:   Register, Size:  8, RawSize:  8, Encoding: A, RegType:             Mask, RegSize:  8, RegId: 5, RegCount: 1
         Operand: 2, Acc:  R-,  Type:   Register, Size: 64, RawSize: 64, Encoding: M, RegType:           Vector, RegSize: 64, RegId: 31, RegCount: 1
 
-00000000000001BE 62027d9dcac7                    VRCP28PS  zmm24{k5}{z}, zmm31, {sae}
+00000000000001BE 62027d9dcac7                    VRCP28PS  zmm24{k5}{z}, zmm31{sae}
         DSIZE: 32, ASIZE: 64, VLEN: 512
         ISA Set: AVX512ER, Ins cat: KNL, CET tracked: no
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1415,6 +1483,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1437,6 +1506,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1460,6 +1530,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1482,6 +1553,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1504,6 +1576,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1518,12 +1591,13 @@
         Operand: 2, Acc:  R-,  Type:   Register, Size: 16, RawSize: 16, Encoding: V, RegType:           Vector, RegSize: 16, RegId: 7, RegCount: 1
         Operand: 3, Acc:  R-,  Type:   Register, Size:  8, RawSize:  8, Encoding: M, RegType:           Vector, RegSize: 16, RegId: 0, RegCount: 1
 
-00000000000001E6 62f2c518cbd0                    VRCP28SD  xmm2, xmm7, xmm0, {sae}
+00000000000001E6 62f2c518cbd0                    VRCP28SD  xmm2, xmm7, xmm0{sae}
         DSIZE: 64, ASIZE: 64, VLEN: 128
         ISA Set: AVX512ER, Ins cat: KNL, CET tracked: no
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1544,6 +1618,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1565,6 +1640,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1586,6 +1662,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1607,6 +1684,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1622,12 +1700,13 @@
         Operand: 2, Acc:  R-,  Type:   Register, Size: 16, RawSize: 16, Encoding: V, RegType:           Vector, RegSize: 16, RegId: 7, RegCount: 1
         Operand: 3, Acc:  R-,  Type:   Register, Size:  8, RawSize:  8, Encoding: M, RegType:           Vector, RegSize: 16, RegId: 0, RegCount: 1
 
-0000000000000208 62f2c51dcbd0                    VRCP28SD  xmm2{k5}, xmm7, xmm0, {sae}
+0000000000000208 62f2c51dcbd0                    VRCP28SD  xmm2{k5}, xmm7, xmm0{sae}
         DSIZE: 64, ASIZE: 64, VLEN: 128
         ISA Set: AVX512ER, Ins cat: KNL, CET tracked: no
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1649,6 +1728,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1671,6 +1751,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1693,6 +1774,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1715,6 +1797,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1731,12 +1814,13 @@
         Operand: 2, Acc:  R-,  Type:   Register, Size: 16, RawSize: 16, Encoding: V, RegType:           Vector, RegSize: 16, RegId: 7, RegCount: 1
         Operand: 3, Acc:  R-,  Type:   Register, Size:  8, RawSize:  8, Encoding: M, RegType:           Vector, RegSize: 16, RegId: 0, RegCount: 1
 
-000000000000022A 62f2c59dcbd0                    VRCP28SD  xmm2{k5}{z}, xmm7, xmm0, {sae}
+000000000000022A 62f2c59dcbd0                    VRCP28SD  xmm2{k5}{z}, xmm7, xmm0{sae}
         DSIZE: 64, ASIZE: 64, VLEN: 128
         ISA Set: AVX512ER, Ins cat: KNL, CET tracked: no
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1759,6 +1843,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1782,6 +1867,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1805,6 +1891,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1828,6 +1915,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1842,12 +1930,13 @@
         Operand: 2, Acc:  R-,  Type:   Register, Size: 16, RawSize: 16, Encoding: V, RegType:           Vector, RegSize: 16, RegId: 7, RegCount: 1
         Operand: 3, Acc:  R-,  Type:   Register, Size:  4, RawSize:  4, Encoding: M, RegType:           Vector, RegSize: 16, RegId: 0, RegCount: 1
 
-000000000000024C 62f24518cbd0                    VRCP28SS  xmm2, xmm7, xmm0, {sae}
+000000000000024C 62f24518cbd0                    VRCP28SS  xmm2, xmm7, xmm0{sae}
         DSIZE: 32, ASIZE: 64, VLEN: 128
         ISA Set: AVX512ER, Ins cat: KNL, CET tracked: no
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1868,6 +1957,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1889,6 +1979,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1910,6 +2001,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1931,6 +2023,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1946,12 +2039,13 @@
         Operand: 2, Acc:  R-,  Type:   Register, Size: 16, RawSize: 16, Encoding: V, RegType:           Vector, RegSize: 16, RegId: 7, RegCount: 1
         Operand: 3, Acc:  R-,  Type:   Register, Size:  4, RawSize:  4, Encoding: M, RegType:           Vector, RegSize: 16, RegId: 0, RegCount: 1
 
-000000000000026E 62f2451dcbd0                    VRCP28SS  xmm2{k5}, xmm7, xmm0, {sae}
+000000000000026E 62f2451dcbd0                    VRCP28SS  xmm2{k5}, xmm7, xmm0{sae}
         DSIZE: 32, ASIZE: 64, VLEN: 128
         ISA Set: AVX512ER, Ins cat: KNL, CET tracked: no
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1973,6 +2067,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -1995,6 +2090,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2017,6 +2113,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2039,6 +2136,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2055,12 +2153,13 @@
         Operand: 2, Acc:  R-,  Type:   Register, Size: 16, RawSize: 16, Encoding: V, RegType:           Vector, RegSize: 16, RegId: 7, RegCount: 1
         Operand: 3, Acc:  R-,  Type:   Register, Size:  4, RawSize:  4, Encoding: M, RegType:           Vector, RegSize: 16, RegId: 0, RegCount: 1
 
-0000000000000290 62f2459dcbd0                    VRCP28SS  xmm2{k5}{z}, xmm7, xmm0, {sae}
+0000000000000290 62f2459dcbd0                    VRCP28SS  xmm2{k5}{z}, xmm7, xmm0{sae}
         DSIZE: 32, ASIZE: 64, VLEN: 128
         ISA Set: AVX512ER, Ins cat: KNL, CET tracked: no
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2083,6 +2182,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2106,6 +2206,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2129,6 +2230,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2152,6 +2254,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2165,12 +2268,13 @@
         Operand: 1, Acc:  R-,  Type:   Register, Size:  8, RawSize:  8, Encoding: A, RegType:             Mask, RegSize:  8, RegId: 0, RegCount: 1
         Operand: 2, Acc:  R-,  Type:   Register, Size: 64, RawSize: 64, Encoding: M, RegType:           Vector, RegSize: 64, RegId: 31, RegCount: 1
 
-00000000000002B2 6202fd18ccc7                    VRSQRT28PD zmm24, zmm31, {sae}
+00000000000002B2 6202fd18ccc7                    VRSQRT28PD zmm24, zmm31{sae}
         DSIZE: 64, ASIZE: 64, VLEN: 512
         ISA Set: AVX512ER, Ins cat: KNL, CET tracked: no
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2190,6 +2294,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2210,6 +2315,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2231,6 +2337,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2251,6 +2358,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2271,6 +2379,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2285,12 +2394,13 @@
         Operand: 1, Acc:  R-,  Type:   Register, Size:  8, RawSize:  8, Encoding: A, RegType:             Mask, RegSize:  8, RegId: 5, RegCount: 1
         Operand: 2, Acc:  R-,  Type:   Register, Size: 64, RawSize: 64, Encoding: M, RegType:           Vector, RegSize: 64, RegId: 31, RegCount: 1
 
-00000000000002DA 6202fd1dccc7                    VRSQRT28PD zmm24{k5}, zmm31, {sae}
+00000000000002DA 6202fd1dccc7                    VRSQRT28PD zmm24{k5}, zmm31{sae}
         DSIZE: 64, ASIZE: 64, VLEN: 512
         ISA Set: AVX512ER, Ins cat: KNL, CET tracked: no
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2311,6 +2421,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2332,6 +2443,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2354,6 +2466,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2375,6 +2488,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2396,6 +2510,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2411,12 +2526,13 @@
         Operand: 1, Acc:  R-,  Type:   Register, Size:  8, RawSize:  8, Encoding: A, RegType:             Mask, RegSize:  8, RegId: 5, RegCount: 1
         Operand: 2, Acc:  R-,  Type:   Register, Size: 64, RawSize: 64, Encoding: M, RegType:           Vector, RegSize: 64, RegId: 31, RegCount: 1
 
-0000000000000302 6202fd9dccc7                    VRSQRT28PD zmm24{k5}{z}, zmm31, {sae}
+0000000000000302 6202fd9dccc7                    VRSQRT28PD zmm24{k5}{z}, zmm31{sae}
         DSIZE: 64, ASIZE: 64, VLEN: 512
         ISA Set: AVX512ER, Ins cat: KNL, CET tracked: no
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2438,6 +2554,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2460,6 +2577,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2483,6 +2601,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2505,6 +2624,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2527,6 +2647,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2540,12 +2661,13 @@
         Operand: 1, Acc:  R-,  Type:   Register, Size:  8, RawSize:  8, Encoding: A, RegType:             Mask, RegSize:  8, RegId: 0, RegCount: 1
         Operand: 2, Acc:  R-,  Type:   Register, Size: 64, RawSize: 64, Encoding: M, RegType:           Vector, RegSize: 64, RegId: 31, RegCount: 1
 
-000000000000032A 62027d18ccc7                    VRSQRT28PS zmm24, zmm31, {sae}
+000000000000032A 62027d18ccc7                    VRSQRT28PS zmm24, zmm31{sae}
         DSIZE: 32, ASIZE: 64, VLEN: 512
         ISA Set: AVX512ER, Ins cat: KNL, CET tracked: no
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2565,6 +2687,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2585,6 +2708,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2606,6 +2730,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2626,6 +2751,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2646,6 +2772,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2660,12 +2787,13 @@
         Operand: 1, Acc:  R-,  Type:   Register, Size:  8, RawSize:  8, Encoding: A, RegType:             Mask, RegSize:  8, RegId: 5, RegCount: 1
         Operand: 2, Acc:  R-,  Type:   Register, Size: 64, RawSize: 64, Encoding: M, RegType:           Vector, RegSize: 64, RegId: 31, RegCount: 1
 
-0000000000000352 62027d1dccc7                    VRSQRT28PS zmm24{k5}, zmm31, {sae}
+0000000000000352 62027d1dccc7                    VRSQRT28PS zmm24{k5}, zmm31{sae}
         DSIZE: 32, ASIZE: 64, VLEN: 512
         ISA Set: AVX512ER, Ins cat: KNL, CET tracked: no
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2686,6 +2814,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2707,6 +2836,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2729,6 +2859,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2750,6 +2881,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2771,6 +2903,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2786,12 +2919,13 @@
         Operand: 1, Acc:  R-,  Type:   Register, Size:  8, RawSize:  8, Encoding: A, RegType:             Mask, RegSize:  8, RegId: 5, RegCount: 1
         Operand: 2, Acc:  R-,  Type:   Register, Size: 64, RawSize: 64, Encoding: M, RegType:           Vector, RegSize: 64, RegId: 31, RegCount: 1
 
-000000000000037A 62027d9dccc7                    VRSQRT28PS zmm24{k5}{z}, zmm31, {sae}
+000000000000037A 62027d9dccc7                    VRSQRT28PS zmm24{k5}{z}, zmm31{sae}
         DSIZE: 32, ASIZE: 64, VLEN: 512
         ISA Set: AVX512ER, Ins cat: KNL, CET tracked: no
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2813,6 +2947,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2835,6 +2970,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2858,6 +2994,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2880,6 +3017,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Full
         Exception class: EVEX, exception type: E2
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2902,6 +3040,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2916,12 +3055,13 @@
         Operand: 2, Acc:  R-,  Type:   Register, Size: 16, RawSize: 16, Encoding: V, RegType:           Vector, RegSize: 16, RegId: 7, RegCount: 1
         Operand: 3, Acc:  R-,  Type:   Register, Size:  8, RawSize:  8, Encoding: M, RegType:           Vector, RegSize: 16, RegId: 0, RegCount: 1
 
-00000000000003A2 62f2c518cdd0                    VRSQRT28SD xmm2, xmm7, xmm0, {sae}
+00000000000003A2 62f2c518cdd0                    VRSQRT28SD xmm2, xmm7, xmm0{sae}
         DSIZE: 64, ASIZE: 64, VLEN: 128
         ISA Set: AVX512ER, Ins cat: KNL, CET tracked: no
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2942,6 +3082,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2963,6 +3104,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -2984,6 +3126,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -3005,6 +3148,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -3020,12 +3164,13 @@
         Operand: 2, Acc:  R-,  Type:   Register, Size: 16, RawSize: 16, Encoding: V, RegType:           Vector, RegSize: 16, RegId: 7, RegCount: 1
         Operand: 3, Acc:  R-,  Type:   Register, Size:  8, RawSize:  8, Encoding: M, RegType:           Vector, RegSize: 16, RegId: 0, RegCount: 1
 
-00000000000003C4 62f2c51dcdd0                    VRSQRT28SD xmm2{k5}, xmm7, xmm0, {sae}
+00000000000003C4 62f2c51dcdd0                    VRSQRT28SD xmm2{k5}, xmm7, xmm0{sae}
         DSIZE: 64, ASIZE: 64, VLEN: 128
         ISA Set: AVX512ER, Ins cat: KNL, CET tracked: no
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -3047,6 +3192,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -3069,6 +3215,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -3091,6 +3238,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -3113,6 +3261,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -3129,12 +3278,13 @@
         Operand: 2, Acc:  R-,  Type:   Register, Size: 16, RawSize: 16, Encoding: V, RegType:           Vector, RegSize: 16, RegId: 7, RegCount: 1
         Operand: 3, Acc:  R-,  Type:   Register, Size:  8, RawSize:  8, Encoding: M, RegType:           Vector, RegSize: 16, RegId: 0, RegCount: 1
 
-00000000000003E6 62f2c59dcdd0                    VRSQRT28SD xmm2{k5}{z}, xmm7, xmm0, {sae}
+00000000000003E6 62f2c59dcdd0                    VRSQRT28SD xmm2{k5}{z}, xmm7, xmm0{sae}
         DSIZE: 64, ASIZE: 64, VLEN: 128
         ISA Set: AVX512ER, Ins cat: KNL, CET tracked: no
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -3157,6 +3307,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -3180,6 +3331,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -3203,6 +3355,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -3226,6 +3379,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -3240,12 +3394,13 @@
         Operand: 2, Acc:  R-,  Type:   Register, Size: 16, RawSize: 16, Encoding: V, RegType:           Vector, RegSize: 16, RegId: 7, RegCount: 1
         Operand: 3, Acc:  R-,  Type:   Register, Size:  4, RawSize:  4, Encoding: M, RegType:           Vector, RegSize: 16, RegId: 0, RegCount: 1
 
-0000000000000408 62f24518cdd0                    VRSQRT28SS xmm2, xmm7, xmm0, {sae}
+0000000000000408 62f24518cdd0                    VRSQRT28SS xmm2, xmm7, xmm0{sae}
         DSIZE: 32, ASIZE: 64, VLEN: 128
         ISA Set: AVX512ER, Ins cat: KNL, CET tracked: no
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -3266,6 +3421,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -3287,6 +3443,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -3308,6 +3465,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -3329,6 +3487,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -3344,12 +3503,13 @@
         Operand: 2, Acc:  R-,  Type:   Register, Size: 16, RawSize: 16, Encoding: V, RegType:           Vector, RegSize: 16, RegId: 7, RegCount: 1
         Operand: 3, Acc:  R-,  Type:   Register, Size:  4, RawSize:  4, Encoding: M, RegType:           Vector, RegSize: 16, RegId: 0, RegCount: 1
 
-000000000000042A 62f2451dcdd0                    VRSQRT28SS xmm2{k5}, xmm7, xmm0, {sae}
+000000000000042A 62f2451dcdd0                    VRSQRT28SS xmm2{k5}, xmm7, xmm0{sae}
         DSIZE: 32, ASIZE: 64, VLEN: 128
         ISA Set: AVX512ER, Ins cat: KNL, CET tracked: no
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -3371,6 +3531,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -3393,6 +3554,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -3415,6 +3577,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -3437,6 +3600,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -3453,12 +3617,13 @@
         Operand: 2, Acc:  R-,  Type:   Register, Size: 16, RawSize: 16, Encoding: V, RegType:           Vector, RegSize: 16, RegId: 7, RegCount: 1
         Operand: 3, Acc:  R-,  Type:   Register, Size:  4, RawSize:  4, Encoding: M, RegType:           Vector, RegSize: 16, RegId: 0, RegCount: 1
 
-000000000000044C 62f2459dcdd0                    VRSQRT28SS xmm2{k5}{z}, xmm7, xmm0, {sae}
+000000000000044C 62f2459dcdd0                    VRSQRT28SS xmm2{k5}{z}, xmm7, xmm0{sae}
         DSIZE: 32, ASIZE: 64, VLEN: 128
         ISA Set: AVX512ER, Ins cat: KNL, CET tracked: no
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -3481,6 +3646,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -3504,6 +3670,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes
@@ -3527,6 +3694,7 @@
         CPUID leaf: 0x00000007, sub-leaf: 0x00000000, reg: ebx, bit: 27
         EVEX Tuple Type: Tuple 1 Scalar
         Exception class: EVEX, exception type: E3
+        SIMD Exceptions: IZ
         Valid modes
                 R0: yes, R1: yes, R2: yes, R3: yes
                 Real: no, V8086: no, Prot: yes, Compat: yes, Long: yes

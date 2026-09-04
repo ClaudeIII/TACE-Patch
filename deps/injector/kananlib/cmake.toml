@@ -14,12 +14,34 @@ else()
     message(STATUS "kananlib: Building as part of another project")
     set(KANANLIB_STANDALONE_BUILD OFF)
 endif()
+
+# Add cmake module path
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
+# DIA SDK Detection
+if(KANANLIB_USE_DIA_SDK)
+    message(STATUS "kananlib: DIA SDK support requested")
+    find_package(DIASDK)
+    
+    if(DIASDK_FOUND)
+        set(KANANLIB_DIA_SDK_FOUND TRUE)
+        message(STATUS "kananlib: DIA SDK support will be enabled")
+    else()
+        set(KANANLIB_DIA_SDK_FOUND FALSE)
+        message(WARNING "kananlib: DIA SDK not found. Symbol resolution will be disabled.")
+        message(STATUS "kananlib: Install Visual Studio with C++ workload to get DIA SDK")
+    endif()
+else()
+    message(STATUS "kananlib: DIA SDK support disabled (set KANANLIB_USE_DIA_SDK=ON to enable)")
+    set(KANANLIB_DIA_SDK_FOUND FALSE)
+endif()
 """
 
 [options]
 KANANLIB_FETCH_BDDISASM = false
 KANANLIB_FETCH_SPDLOG = false
 KANANLIB_STANDALONE_BUILD = false
+KANANLIB_USE_DIA_SDK = false
 
 [conditions]
 fetch-bddisasm = "KANANLIB_FETCH_BDDISASM OR KANANLIB_STANDALONE_BUILD"
@@ -34,32 +56,102 @@ shallow = true
 [fetch-content.spdlog]
 condition = "fetch-spdlog"
 git = "https://github.com/gabime/spdlog"
-tag = "v1.12.0"
+tag = "v1.17.0"
 shallow = true
 
 [template.kananlib-template]
 type = "static"
-sources = ["src/*.cpp", "include/**.hpp"]
+sources = ["src/*.cpp", "src/compat/*.cpp", "include/**.hpp", "include/compat/**.h"]
 include-directories = ["include"]
 compile-features = ["cxx_std_20"]
-compile-options = ["/EHa"]
 link-libraries = [
-    "bddisasm::bddisasm", 
-    "spdlog::spdlog", 
-    "shlwapi"
+    "bddisasm::bddisasm",
+    "bddisasm::bdshemu",
+    "spdlog::spdlog"
 ]
 
 [target.kananlib]
 type = "kananlib-template"
+cmake-after="""
+if (CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+    message(STATUS "MSVC")
+    target_compile_options(kananlib PRIVATE /EHa)
+else()
+    message(STATUS "CLANG")
+    target_compile_options(kananlib PRIVATE
+        -fasynchronous-unwind-tables
+        -fexceptions
+        -fms-extensions
+    )
+endif()
+
+# Win32 compatibility shim: on non-Windows, put the compat headers on the public
+# include path (so <Windows.h> etc. resolve) and link threading/dl. shlwapi is
+# a Windows-only dependency.
+if (WIN32)
+    target_link_libraries(kananlib PRIVATE shlwapi)
+else()
+    target_include_directories(kananlib PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include/compat")
+    find_package(Threads REQUIRED)
+    target_link_libraries(kananlib PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
+endif()
+
+# Configure DIA SDK if found
+if(KANANLIB_DIA_SDK_FOUND)
+    target_compile_definitions(kananlib PRIVATE KANANLIB_USE_DIA_SDK)
+    target_link_libraries(kananlib PRIVATE DIASDK::DIASDK)
+    if (CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+        target_link_options(kananlib PRIVATE /DELAYLOAD:msdia140.dll)
+        target_link_libraries(kananlib PRIVATE delayimp)
+    endif()
+    message(STATUS "kananlib: DIA SDK support enabled for kananlib target")
+endif()
+"""
 
 [target.kananlib-nolog]
 type = "kananlib-template"
 compile-definitions = ["SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_OFF"]
+cmake-after="""
+if (CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+    target_compile_options(kananlib-nolog PRIVATE /EHa)
+else()
+    target_compile_options(kananlib-nolog PRIVATE
+        -fasynchronous-unwind-tables
+        -fexceptions
+        -fms-extensions
+    )
+endif()
 
-# TODO: define a target for each of your executables/libraries like this:
-#[target.myexecutable]
-#type = "executable" # static, shared
-#sources = ["src/kananlib/*.cpp", "include/kananlib/*.hpp"]
-#include-directories = ["include"]
-#compile-features = ["cxx_std_11"]
-#link-libraries = ["target-or-library"]
+if (WIN32)
+    target_link_libraries(kananlib-nolog PRIVATE shlwapi)
+else()
+    target_include_directories(kananlib-nolog PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include/compat")
+    find_package(Threads REQUIRED)
+    target_link_libraries(kananlib-nolog PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
+endif()
+
+# Configure DIA SDK if found
+if(KANANLIB_DIA_SDK_FOUND)
+    target_compile_definitions(kananlib-nolog PRIVATE KANANLIB_USE_DIA_SDK)
+    target_link_libraries(kananlib-nolog PRIVATE DIASDK::DIASDK)
+    if (CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+        target_link_options(kananlib-nolog PRIVATE /DELAYLOAD:msdia140.dll)
+        target_link_libraries(kananlib-nolog PRIVATE delayimp)
+    endif()
+    message(STATUS "kananlib: DIA SDK support enabled for kananlib-nolog target")
+endif()
+"""
+
+# CLI tool for mapping binaries and scanning in-process
+[target.kananlib-cli]
+type = "executable"
+sources = ["src/cli/kananlib-cli.cpp"]
+include-directories = ["include"]
+compile-features = ["cxx_std_20"]
+link-libraries = ["kananlib"]
+
+cmake-after="""
+if (CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+    target_compile_options(kananlib-cli PRIVATE /EHa)
+endif()
+"""

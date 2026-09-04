@@ -34,7 +34,7 @@ use bddisasm::{DecodedInstruction, DecodeMode, Mnemonic};
 let code = vec![0x31, 0xc0];
 match DecodedInstruction::decode(&code, DecodeMode::Bits32) {
     Ok(ins) => {
-        assert_eq!(ins.mnemonic(), Mnemonic::Xor);
+        assert_eq!(ins.mnemonic(), Mnemonic::XOR);
         println!("{}", ins);
     },
     Err(err) => println!("Unable to decode: {}", err),
@@ -127,11 +127,8 @@ use bddisasm::{DecodedInstruction, DecodeMode, OpInfo};
 let code = b"\x4a\x8b\x04\x79";
 let ins = DecodedInstruction::decode(code, DecodeMode::Bits64).unwrap();
 
-// Get the operands
-let operands = ins.operands();
-
 // Get the second operand which is the source (`[rcx+r15*2]`)
-let src = operands[1];
+let src = ins.operand(1)?;
 
 println!("Source operand type: {}", src.info);
 match src.info {

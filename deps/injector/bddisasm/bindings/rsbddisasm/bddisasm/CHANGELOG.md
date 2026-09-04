@@ -1,5 +1,21 @@
 # bddisasm changelog
 
+## 0.8.0
+
+### Changed
+
+- use `INSTRUX_MINI` internally.
+
+## 0.3.1
+
+### Removed
+
+- the `ExceptionClass` enum
+- `sse_cond`, `has_mvex`, `has_drex`, `has_imm3`, `immediate3`, `sign_disp`, `imm3_length`, `imm3_offset`, `bhint`  from `DecodedInstruction`
+- multiple variants from `Category`, `IsaSet`, `Mnemonic` in accordance with the changes in `bddisasm`
+- `raw_size`, `decorator` from `Operand`
+- the `Operand` struct
+
 ## 0.2.1
 
 ### Added

@@ -1,4 +1,4 @@
-#include <Windows.h>
+#include <windows.h>
 
 #include <utility/Patch.hpp>
 
@@ -77,6 +77,9 @@ bool Patch::enable() {
 }
 
 bool Patch::disable() {
+    if (!m_enabled) {
+        return true;
+    }
     return !(m_enabled = !patch(m_address, m_original_bytes));
 }
 

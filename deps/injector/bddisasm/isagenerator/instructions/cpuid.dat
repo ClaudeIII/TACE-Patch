@@ -94,7 +94,9 @@ AVX512FP16              : 0x00000007, 0x00000000, EDX, 23
 AMXTILE                 : 0x00000007, 0x00000000, EDX, 24
 AMXINT8                 : 0x00000007, 0x00000000, EDX, 25
 
-
+SHA512                  : 0x00000007, 0x00000001, EAX, 0
+SM3                     : 0x00000007, 0x00000001, EAX, 1
+SM4                     : 0x00000007, 0x00000001, EAX, 2
 RAOINT                  : 0x00000007, 0x00000001, EAX, 3
 AVXVNNI                 : 0x00000007, 0x00000001, EAX, 4
 AVX512BF16              : 0x00000007, 0x00000001, EAX, 5
@@ -106,11 +108,16 @@ AMXFP16                 : 0x00000007, 0x00000001, EAX, 21
 HRESET                  : 0x00000007, 0x00000001, EAX, 22
 AVXIFMA                 : 0x00000007, 0x00000001, EAX, 23
 MSRLIST                 : 0x00000007, 0x00000001, EAX, 27
-
+MOVRS                   : 0x00000007, 0x00000001, EAX, 31
+TSE                     : 0x00000007, 0x00000001, EBX, 1
+MSR_IMM                 : 0x00000007, 0x00000001, ECX, 5
 AVXVNNIINT8             : 0x00000007, 0x00000001, EDX, 4
 AVXNECONVERT            : 0x00000007, 0x00000001, EDX, 5
 AMXCOMPLEX              : 0x00000007, 0x00000001, EDX, 8
+AVXVNNIINT16            : 0x00000007, 0x00000001, EDX, 10
 PREFETCHITI             : 0x00000007, 0x00000001, EDX, 14
+USER_MSR                : 0x00000007, 0x00000001, EDX, 15
+APX_F                   : 0x00000007, 0x00000001, EDX, 21
 
 
 XSAVEOPT                : 0x0000000D, 0x00000001, EAX, 0
@@ -119,6 +126,13 @@ XSAVES                  : 0x0000000D, 0x00000001, EAX, 3
 
 
 PTWRITE                 : 0x00000014, 0x00000000, EBX, 4
+
+
+AMXFP8                  : 0x0000001E, 0x00000001, EAX, 4
+AMXTRANSPOSE            : 0x0000001E, 0x00000001, EAX, 5
+AMXTF32                 : 0x0000001E, 0x00000001, EAX, 6
+AMXAVX512               : 0x0000001E, 0x00000001, EAX, 7
+AMXMOVRS                : 0x0000001E, 0x00000001, EAX, 8
 
 
 SVM                     : 0x80000001, 0xFFFFFFFF, ECX, 2
@@ -142,3 +156,4 @@ MCOMMIT                 : 0x80000008, 0xFFFFFFFF, EBX, 8
 
 SNP                     : 0x8000001F, 0xFFFFFFFF, EAX, 4
 RMPQUERY                : 0x8000001F, 0xFFFFFFFF, EAX, 6
+RMPREAD                 : 0x8000001F, 0xFFFFFFFF, EAX, 21

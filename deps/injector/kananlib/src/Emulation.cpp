@@ -45,7 +45,11 @@ ShemuContext::ShemuContext(uintptr_t base, size_t buffer_size, size_t stack_size
     ctx->Registers.RegCr0 = 0x0000000080050031;
     ctx->Registers.RegCr4 = 0x0000000000170678;
 
+#if KANANLIB_ARCH_X86_32
+    ctx->Mode = ND_CODE_32;
+#else
     ctx->Mode = ND_CODE_64;
+#endif
     ctx->Ring = 3;
     ctx->TibBase = ctx->Mode == ND_CODE_32 ? ctx->Segments.Fs.Base : ctx->Segments.Gs.Base;
     ctx->MaxInstructionsCount = 4096;
@@ -116,7 +120,7 @@ void emulate(HMODULE module, uintptr_t ip, size_t num_instructions, std::functio
 }
 
 void emulate(HMODULE module, uintptr_t ip, size_t num_instructions, ShemuContext& emu, std::function<ExhaustionResult(const ShemuContextExtended& ctx)> callback) {
-    utility::ShemuContextExtended ctx{&emu, false};
+    utility::ShemuContextExtended ctx{&emu, { .writes_to_memory = false }};
 
     while (true) try {
         if (emu.ctx->InstructionsCount > num_instructions) {
@@ -147,10 +151,11 @@ void emulate(HMODULE module, uintptr_t ip, size_t num_instructions, ShemuContext
         }
 
         // Continue
-        const auto emu_failed = emu.emulate() != SHEMU_SUCCESS;
+        const auto emu_reason = emu.emulate();
+        const auto emu_failed = emu_reason != SHEMU_SUCCESS;
 
         if (emu_failed) {
-            SPDLOG_ERROR("Emulation failed at {:x}", emu.ctx->Registers.RegRip);
+            SPDLOG_ERROR("Emulation failed at {:x} (reason: {})", emu.ctx->Registers.RegRip, emu_reason);
 
             const auto ix_cur = utility::decode_one((uint8_t*)emu.ctx->Registers.RegRip);
 

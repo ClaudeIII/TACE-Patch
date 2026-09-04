@@ -4,11 +4,58 @@
 #include <optional>
 #include <string>
 #include <functional>
+#include <unordered_set>
+#include <vector>
+#include <array>
+#include <type_traits>
 
 #include <bddisasm.h>
-#include <Windows.h>
+#include <windows.h>
+#include <utility/Seh.hpp>
+
+#include <utility/Logging.hpp>
+#include <utility/Benchmark.hpp>
+#include <utility/String.hpp>
+
+
+#if defined(KANANLIB_TESTING)
+namespace utility::testing {
+    enum class RelativeReferenceScanImplementation {
+        None,
+        ScalarByteByByte,
+        Scalar,
+        Avx2,
+    };
+
+    void reset_relative_reference_scan_implementation();
+    RelativeReferenceScanImplementation last_relative_reference_scan_implementation();
+    bool relative_reference_avx2_available_for_dispatch();
+}
+#endif
 
 namespace utility {
+    // KANANLIB_ARCH_X86_32 is 1 when building for 32-bit x86 (MSVC _M_IX86 or
+    // GCC/Clang __i386__), 0 otherwise (i.e. x64 on any OS). Do NOT use _WIN64
+    // for this: _WIN64 is undefined on non-Windows 64-bit targets (e.g. Linux
+    // x64), which would wrongly select the 32-bit path there and mis-decode.
+#if defined(_M_IX86) || defined(__i386__)
+#define KANANLIB_ARCH_X86_32 1
+#else
+#define KANANLIB_ARCH_X86_32 0
+#endif
+
+    // Decode mode used for bddisasm calls: x64 processes run in 64-bit code/
+    // data mode, x86 in 32-bit mode. Mixing these (e.g. always decoding in
+    // 64-bit mode on an x86 target) corrupts instruction lengths/operand
+    // kinds for encodings that differ between the two modes.
+#if KANANLIB_ARCH_X86_32
+    constexpr auto KANANLIB_DECODE_MODE = ND_CODE_32;
+    constexpr auto KANANLIB_DECODE_DATA = ND_DATA_32;
+#else
+    constexpr auto KANANLIB_DECODE_MODE = ND_CODE_64;
+    constexpr auto KANANLIB_DECODE_DATA = ND_DATA_64;
+#endif
+
     std::optional<uintptr_t> scan(const std::string& module, const std::string& pattern);
     std::optional<uintptr_t> scan(const std::wstring& module, const std::string& pattern);
     std::optional<uintptr_t> scan(const std::string& module, uintptr_t start, const std::string& pattern);
@@ -19,9 +66,22 @@ namespace utility {
     
     std::optional<uintptr_t> scan_data(HMODULE, const uint8_t* data, size_t size);
     std::optional<uintptr_t> scan_data(uintptr_t start, size_t length, const uint8_t* data, size_t size);
+    
+    template<typename T>
+    std::optional<uintptr_t> scan_data_t(HMODULE module, const T& data) {
+        return scan_data(module, reinterpret_cast<const uint8_t*>(&data), sizeof(T));
+    }
+
+    template<typename T>
+    std::optional<uintptr_t> scan_data_t(uintptr_t start, size_t length, const T& data) {
+        return scan_data(start, length, reinterpret_cast<const uint8_t*>(&data), sizeof(T));
+    }
+
     std::optional<uintptr_t> scan_data_reverse(uintptr_t start, size_t length, const uint8_t* data, size_t size);
     std::optional<uintptr_t> scan_ptr(HMODULE module, uintptr_t ptr);
     std::optional<uintptr_t> scan_ptr(uintptr_t start, size_t length, uintptr_t ptr);
+    std::optional<uintptr_t> scan_ptr_noalign(HMODULE module, uintptr_t ptr);
+    std::optional<uintptr_t> scan_ptr_noalign(uintptr_t start, size_t length, uintptr_t ptr);
     std::optional<uintptr_t> scan_string(HMODULE module, const std::string& str, bool zero_terminated = false);
     std::optional<uintptr_t> scan_string(HMODULE module, const std::wstring& str, bool zero_terminated = false);
     std::optional<uintptr_t> scan_string(uintptr_t start, size_t length, const std::string& str, bool zero_terminated = false);
@@ -31,6 +91,7 @@ namespace utility {
     std::vector<uintptr_t> scan_strings(uintptr_t start, size_t length, const std::string& str, bool zero_terminated = false);
     std::vector<uintptr_t> scan_strings(uintptr_t start, size_t length, const std::wstring& str, bool zero_terminated = false);
 
+    std::optional<uintptr_t> scan_relative_reference_scalar_byte_by_byte(uintptr_t start, size_t length, uintptr_t ptr, std::function<bool(uintptr_t)> filter = nullptr);
     std::optional<uintptr_t> scan_relative_reference_scalar(uintptr_t start, size_t length, uintptr_t ptr, std::function<bool(uintptr_t)> filter = nullptr);
 
     std::optional<uintptr_t> scan_relative_reference(uintptr_t start, size_t length, uintptr_t ptr, std::function<bool(uintptr_t)> filter = nullptr);
@@ -43,8 +104,8 @@ namespace utility {
     std::optional<uintptr_t> scan_reference(uintptr_t start, size_t length, uintptr_t ptr, bool relative = true);
     std::optional<uintptr_t> scan_relative_reference_strict(HMODULE module, uintptr_t ptr, const std::string& preceded_by);
     std::optional<uintptr_t> scan_relative_reference_strict(uintptr_t start, size_t length, uintptr_t ptr, const std::string& preceded_by);
-    std::optional<uintptr_t> scan_displacement_reference(HMODULE module, uintptr_t ptr);
-    std::optional<uintptr_t> scan_displacement_reference(uintptr_t start, size_t length, uintptr_t ptr);
+    std::optional<uintptr_t> scan_displacement_reference(HMODULE module, uintptr_t ptr, std::function<bool(uintptr_t)> filter = nullptr);
+    std::optional<uintptr_t> scan_displacement_reference(uintptr_t start, size_t length, uintptr_t ptr, std::function<bool(uintptr_t)> filter = nullptr);
     std::vector<uintptr_t> scan_displacement_references(HMODULE module, uintptr_t ptr);
     std::vector<uintptr_t> scan_displacement_references(uintptr_t start, size_t length, uintptr_t ptr);
 
@@ -69,9 +130,248 @@ namespace utility {
         INSTRUX instrux{};
 
         uintptr_t branch_start{};
+        uintptr_t resolved_target{}; // Pre-resolved branch/displacement target (0 if none)
     };
-    void exhaustive_decode(uint8_t* ip, size_t max_size, std::function<ExhaustionResult(ExhaustionContext&)> callback);
-    void exhaustive_decode(uint8_t* ip, size_t max_size, std::function<ExhaustionResult(INSTRUX&, uintptr_t)> callback);
+
+    // Forward declaration needed by the template below
+    std::optional<uintptr_t> resolve_displacement(uintptr_t ip, const INSTRUX* instrux_in);
+
+    // Thread-local reusable hash table for exhaustive_decode.
+    // Allocated once per thread, grows as needed, never freed until thread exit.
+    struct TlsSeenTable {
+        uint8_t** slots = nullptr;   // hash table slots (power-of-2 sized)
+        size_t* dirty = nullptr;     // indices of occupied slots for fast cleanup
+        size_t capacity = 0;         // current slot count (always power of 2)
+        size_t capacity_bits = 0;    // log2(capacity)
+        ~TlsSeenTable() { free(slots); free(dirty); }
+    };
+
+    template<typename F>
+    void exhaustive_decode(uint8_t* start, size_t max_size, F&& callback) {
+        KANANLIB_BENCH();
+        SPDLOG_DEBUG("Running exhaustive_decode on {:x}", (uintptr_t)start);
+
+        // Flat open-addressing hash set for seen addresses.
+        // Thread-local buffer avoids heap alloc/free on every call.
+        // Dirty list avoids zeroing the whole table — only used slots are cleared.
+        const size_t table_capacity = std::max<size_t>(65536, max_size * 64);
+        size_t table_bits = 4; // minimum 16 slots
+        while ((size_t{1} << table_bits) < table_capacity * 2) ++table_bits; // load factor <= 0.5
+        const size_t needed = size_t{1} << table_bits;
+
+        thread_local TlsSeenTable tls{};
+        if (needed > tls.capacity) {
+            free(tls.slots);
+            free(tls.dirty);
+            tls.slots = (uint8_t**)calloc(needed, sizeof(uint8_t*));
+            tls.dirty = (size_t*)malloc((needed / 2) * sizeof(size_t));
+            if (!tls.slots || !tls.dirty) {
+                free(tls.slots); free(tls.dirty);
+                tls.slots = nullptr; tls.dirty = nullptr;
+                tls.capacity = 0; tls.capacity_bits = 0;
+                return;
+            }
+            tls.capacity = needed;
+            tls.capacity_bits = table_bits;
+        }
+        // Use the (possibly larger) TLS table directly
+        auto* seen_table = tls.slots;
+        auto* dirty_slots = tls.dirty;
+        size_t dirty_count = 0;
+        const size_t table_size = tls.capacity;
+        const size_t table_mask = table_size - 1;
+        const size_t tls_bits = tls.capacity_bits;
+        constexpr uint64_t fib_mult = 11400714819323198485ULL;
+        #define SEEN_HASH(p) ((size_t)((uint64_t)(uintptr_t)(p) * fib_mult >> (64 - tls_bits)))
+
+        thread_local std::vector<uint8_t*> branches{};
+        branches.clear();
+        branches.push_back(start);
+
+        uint32_t total_branches_seen = 0;
+        size_t total_seen_count = 0;
+        const size_t max_seen = table_size / 2; // never exceed 50% load factor
+
+        auto decode_branch = [&](uint8_t* ip) {
+            const auto branch_start = (uintptr_t)ip;
+
+            ExhaustionContext ctx{};
+            ctx.branch_start = branch_start;
+
+            for (size_t i = 0; i < max_size; ++i) {
+                // Inline seen_contains
+                {
+                    bool already_seen = false;
+                    for (size_t si = SEEN_HASH(ip);; si = (si + 1) & table_mask) {
+                        if (seen_table[si] == ip) { already_seen = true; break; }
+                        if (seen_table[si] == nullptr) break;
+                    }
+                    if (already_seen) break;
+                }
+                // Table full — stop decoding to prevent infinite probe loops
+                if (total_seen_count >= max_seen) {
+                    break;
+                }
+                // Inline seen_insert (track dirty slots for cleanup)
+                for (size_t si = SEEN_HASH(ip);; si = (si + 1) & table_mask) {
+                    if (seen_table[si] == nullptr) { seen_table[si] = ip; dirty_slots[dirty_count++] = si; ++total_seen_count; break; }
+                    if (seen_table[si] == ip) break;
+                }
+
+                // This instead of IsBadReadPtr so we don't branch into kernel32 every time
+                // we want to test the readability of the memory
+#ifdef NDEBUG
+                KANANLIB_SEH_TRY {
+                    volatile auto test1 = *(uintptr_t*)(ip);
+                    volatile auto test8 = *(uintptr_t*)(ip + 56); // check if we can read ahead without page crossing
+                    (void)test1; (void)test8;
+                } KANANLIB_SEH_EXCEPT (EXCEPTION_EXECUTE_HANDLER) {
+                    break;
+                }
+#else
+                if (IsBadReadPtr(ip, 64)) {
+                    break;
+                }
+#endif
+                const auto status = NdDecodeEx(&ctx.instrux, ip, 64, KANANLIB_DECODE_MODE, KANANLIB_DECODE_DATA);
+
+                if (!ND_SUCCESS(status)) {
+                    break;
+                }
+
+                ctx.addr = (uintptr_t)ip;
+
+                auto& ix = ctx.instrux;
+
+                // Pre-resolve branch target so the callback can use it without re-resolving
+                ctx.resolved_target = 0;
+                if (ix.IsRipRelative && !ix.BranchInfo.IsIndirect && ix.BranchInfo.IsBranch) {
+                    if (auto dest = utility::resolve_displacement((uintptr_t)ip, &ix); dest) {
+                        ctx.resolved_target = *dest;
+                    }
+                }
+
+                ExhaustionResult result{};
+
+                if constexpr (std::is_invocable_v<F, ExhaustionContext&>) {
+                    result = callback(ctx);
+                } else {
+                    result = callback(ctx.instrux, ctx.addr);
+                }
+
+                if (result == ExhaustionResult::BREAK) {
+                    return;
+                }
+
+                // Allows the callback to at least process that we hit a ret or int3, but we will stop here.
+                if (ix.Instruction == ND_INS_RETN || ix.Instruction == ND_INS_INT3) {
+                    break;
+                }
+
+                const auto prev_branches_count = total_branches_seen;
+
+                // We dont want to follow indirect branches, we aren't emulating
+                if (ix.IsRipRelative && !ix.BranchInfo.IsIndirect) {
+                    if (ix.BranchInfo.IsBranch && ix.BranchInfo.IsConditional) {
+                        SPDLOG_DEBUG("Conditional Branch detected: {:x}", (uintptr_t)ip);
+
+                        if (ctx.resolved_target != 0) {
+                            if (result != ExhaustionResult::STEP_OVER) {
+                                branches.push_back((uint8_t*)ctx.resolved_target);
+                                ++total_branches_seen;
+                            }
+                        } else {
+                            SPDLOG_ERROR("Failed to resolve displacement for {:x}", (uintptr_t)ip);
+                            SPDLOG_ERROR(" TODO: Fix this");
+                        }
+                    } else if (ix.BranchInfo.IsBranch && !ix.BranchInfo.IsConditional) {
+                        SPDLOG_DEBUG("Unconditional Branch detected: {:x}", (uintptr_t)ip);
+
+                        const auto is_jmp = ix.Instruction >= ND_INS_JMPE && ix.Instruction <= ND_INS_JMPNR;
+
+                        if (is_jmp) {
+                            if (ctx.resolved_target != 0) {
+                                ip = (uint8_t*)ctx.resolved_target;
+                                ctx.branch_start = ctx.resolved_target;
+                                ++total_branches_seen;
+                                continue;
+                            } else {
+                                SPDLOG_ERROR("Failed to resolve displacement for {:x}", (uintptr_t)ip);
+                                SPDLOG_ERROR(" TODO: Fix this");
+                            }
+                        } else if (result != ExhaustionResult::STEP_OVER) {
+                            if (ctx.resolved_target != 0) {
+                                branches.push_back((uint8_t*)ctx.resolved_target);
+                                ++total_branches_seen;
+                            } else {
+                                SPDLOG_ERROR("Failed to resolve displacement for {:x}", (uintptr_t)ip);
+                                SPDLOG_ERROR(" TODO: Fix this");
+                            }
+                        }
+                    }
+                } else if (ix.IsRipRelative && ip[0] == 0xFF && ip[1] == 0x25) { // jmp qword ptr [rip+0xdeadbeef]
+                    SPDLOG_DEBUG("Indirect jmp detected: {:x}", (uintptr_t)ip);
+                    const auto dest = utility::calculate_absolute((uintptr_t)ip + 2);
+
+                    if (dest != 0 && dest != (uintptr_t)ip && !IsBadReadPtr((void*)dest, sizeof(void*))) {
+                        const auto real_dest = *(uintptr_t*)dest;
+
+                        // Cannot step over jmps
+                        if (real_dest != 0 && real_dest != (uintptr_t)ip && !IsBadReadPtr((void*)real_dest, sizeof(void*))) {
+                            SPDLOG_DEBUG("Indirect jmp destination: {:x}", (uintptr_t)real_dest);
+                            ip = (uint8_t*)real_dest;
+                            ctx.branch_start = (uintptr_t)real_dest;
+                            ++total_branches_seen;
+                            continue;
+                        }
+                    }
+
+                    SPDLOG_DEBUG("Failed to resolve indirect jmp destination: {:x}", (uintptr_t)ip);
+                    break;
+                } else if (ix.IsRipRelative && ip[0] == 0xFF && ip[1] == 0x15) { // call qword ptr [rip+0xdeadbeef]
+                    SPDLOG_DEBUG("Indirect call detected: {:x}", (uintptr_t)ip);
+
+                    const auto dest = utility::calculate_absolute((uintptr_t)ip + 2);
+
+                    if (dest != 0 && dest != (uintptr_t)ip && !IsBadReadPtr((void*)dest, sizeof(void*))) {
+                        const auto real_dest = *(uintptr_t*)dest;
+
+                        if (real_dest != 0 && real_dest != (uintptr_t)ip && !IsBadReadPtr((void*)real_dest, sizeof(void*)) && result != ExhaustionResult::STEP_OVER) {
+                            branches.push_back((uint8_t*)real_dest);
+                            ++total_branches_seen;
+                            SPDLOG_DEBUG("Indirect call destination: {:x}", (uintptr_t)real_dest);
+                        }
+                    }
+                } else if (ix.BranchInfo.IsBranch && !ix.BranchInfo.IsConditional) {
+                    if (ix.Category != ND_CAT_CALL) {
+                        break;
+                    }
+                }
+
+                ip += ix.Length;
+
+                if (total_branches_seen != prev_branches_count) {
+                    ctx.branch_start = (uintptr_t)ip;
+                }
+            }
+        };
+
+        for (size_t branch_idx = 0; branch_idx < branches.size() && total_seen_count < max_seen; ++branch_idx) {
+            decode_branch(branches[branch_idx]);
+        }
+
+        // Dirty list is faster for sparse usage; memset is faster when heavily filled
+        if (dirty_count > table_size / 8) {
+            memset(seen_table, 0, table_size * sizeof(uint8_t*));
+        } else {
+            for (size_t i = 0; i < dirty_count; ++i) {
+                seen_table[dirty_slots[i]] = nullptr;
+            }
+        }
+        #undef SEEN_HASH
+    }
+
+    void linear_decode(uint8_t* ip, size_t max_size, std::function<bool(ExhaustionContext&)> callback);
 
     struct BasicBlock {
         struct Instruction {
@@ -83,24 +383,96 @@ namespace utility {
         uintptr_t end{};
         std::vector<Instruction> instructions{};
         std::vector<uintptr_t> branches{}; // the addresses they branch to, not the addresses of the instructions themselves
+        size_t instruction_count{};
+        bool is_call_block{}; // whether this block ends with a call instruction
     };
     struct BasicBlockCollectOptions {
         size_t max_size{1000};
         bool sort{false};
+        bool merge_call_blocks{true}; // if a block ends with a call, and the next block starts with the instruction after the call, merge them into one block
+        bool copy_instructions{true}; // if false, the instructions vector will be empty, and only the start/end/branches will be populated
     };
+    void collect_basic_blocks_into(uintptr_t start, const BasicBlockCollectOptions& options, std::vector<BasicBlock>& blocks);
     std::vector<BasicBlock> collect_basic_blocks(uintptr_t start, const BasicBlockCollectOptions& options = {});
+    std::vector<BasicBlock>::const_iterator get_highest_contiguous_block(const std::vector<BasicBlock>& blocks);
 
-    PIMAGE_RUNTIME_FUNCTION_ENTRY find_function_entry(uintptr_t middle);
+    struct LinearBlock {
+        uintptr_t start{};
+        uintptr_t end{};
+        std::vector<uintptr_t> branches{};
+    };
+
+    std::vector<LinearBlock> collect_linear_blocks(uintptr_t fn_start, uintptr_t fn_end);
+
+    // We are storing a list of ranges inside buckets, so we can quickly find the correct bucket
+    // Doing this with multithreading was much slower and inefficient
+    struct Bucket {
+        struct IMAGE_RUNTIME_FUNCTION_ENTRY_KANANLIB {
+            DWORD BeginAddress{};
+            DWORD EndAddress{};
+            union {
+                DWORD UnwindInfoAddress{};
+                DWORD UnwindData;
+            } DUMMYUNIONNAME;
+
+            PIMAGE_RUNTIME_FUNCTION_ENTRY original{nullptr};
+
+            IMAGE_RUNTIME_FUNCTION_ENTRY_KANANLIB(PIMAGE_RUNTIME_FUNCTION_ENTRY entry)
+                : BeginAddress(entry->BeginAddress),
+                  EndAddress(entry->EndAddress),
+                  original(entry)
+            {
+                this->UnwindData = entry->UnwindData;
+            }
+
+            IMAGE_RUNTIME_FUNCTION_ENTRY_KANANLIB() = default;
+        };
+
+        uint32_t start_range{};
+        uint32_t end_range{};
+        std::vector<IMAGE_RUNTIME_FUNCTION_ENTRY_KANANLIB> entries{};
+    };
+
+    void populate_function_buckets_heuristic(uintptr_t module);
+    std::optional<Bucket::IMAGE_RUNTIME_FUNCTION_ENTRY_KANANLIB> find_function_entry(uintptr_t middle);
+
+    namespace detail {
+        // Removes function-start candidate RVAs whose bytes at (module + rva) do
+        // not decode to a valid instruction. Undecodable candidates would otherwise
+        // become zero-width bucket entries in populate_function_buckets_heuristic.
+        // Internal implementation detail exposed for deterministic unit testing;
+        // not a supported API.
+        void remove_undecodable_starts(std::vector<uint32_t>& starts, uintptr_t module);
+    }
+
+    struct FunctionBounds {
+        uintptr_t start{};
+        uintptr_t end{};
+        size_t instruction_count{};
+    };
+    std::vector<FunctionBounds> find_all_function_bounds(HMODULE module);
+    std::optional<FunctionBounds> determine_function_bounds(uintptr_t start);
+
     std::optional<uintptr_t> find_function_start(uintptr_t middle);
+    // same as prev, but unwinds until the main procedure is found
+    // separate function because a lot of code depends on find_function_start
+    // finding the basic block the middle is in, and not the actual function start
+    std::optional<uintptr_t> find_function_start_unwind(uintptr_t middle);
     // same as prev, but keeps going backwards until the "function" it lands on
     // is actually called somewhere within the module
     std::optional<uintptr_t> find_function_start_with_call(uintptr_t middle);
+
+    // Given a function that is an SEH exception filter, finds the owning function
+    // by scanning .pdata scope tables for a reference to the filter's RVA.
+    std::optional<uintptr_t> resolve_scope_table_owner(HMODULE module, uintptr_t filter_func);
+
     std::optional<uintptr_t> find_function_from_string_ref(HMODULE module, std::string_view str, bool zero_terminated = false);
     std::optional<uintptr_t> find_function_from_string_ref(HMODULE module, std::wstring_view str, bool zero_terminated = false);
 
     // finds the function(s) containing the A string, and then
     // disassembles each one looking for a reference to data that contains the B string
     std::optional<uintptr_t> find_function_with_string_refs(HMODULE module, std::wstring_view a, std::wstring_view b, bool follow_calls = false);
+    std::optional<uintptr_t> find_function_with_refs(HMODULE module, std::vector<uintptr_t> ptrs);
 
     // Same as the previous, but it keeps going upwards until utility::scan_ptr returns something
     std::optional<uintptr_t> find_virtual_function_start(uintptr_t middle);
@@ -119,7 +491,8 @@ namespace utility {
     std::optional<uintptr_t> find_encapsulating_function(uintptr_t start_instruction, uintptr_t middle);
     std::optional<uintptr_t> find_encapsulating_function_disp(uintptr_t start_instruction, uintptr_t disp, bool follow_calls = true);
 
-    std::optional<uintptr_t> resolve_displacement(uintptr_t ip);
+    // Can supply an instrux if we've already decoded this (reduces redundant decoding when we just want to resolve the displacement)
+    std::optional<uintptr_t> resolve_displacement(uintptr_t ip, const INSTRUX* instrux_in = nullptr);
 
     struct Resolved {
         uintptr_t addr{};
@@ -153,11 +526,11 @@ namespace utility {
         Resolved resolved{};
         union {
             const char* ascii{nullptr};
-            const wchar_t* unicode;
+            const utf16_char* unicode;
         };
 
         StringReference(const Resolved& resolved, const char* ascii) : resolved(resolved), ascii(ascii) {}
-        StringReference(const Resolved& resolved, const wchar_t* unicode) : resolved(resolved), unicode(unicode) {}
+        StringReference(const Resolved& resolved, const utf16_char* unicode) : resolved(resolved), unicode(unicode) {}
     };
 
     struct StringReferenceOptions {

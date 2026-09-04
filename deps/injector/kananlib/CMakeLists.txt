@@ -31,6 +31,7 @@ endif()
 option(KANANLIB_FETCH_BDDISASM "" OFF)
 option(KANANLIB_FETCH_SPDLOG "" OFF)
 option(KANANLIB_STANDALONE_BUILD "" OFF)
+option(KANANLIB_USE_DIA_SDK "" OFF)
 
  
 add_compile_options($<$<CXX_COMPILER_ID:MSVC>:/MP>)
@@ -45,6 +46,27 @@ else()
     # The project is being included as part of another project
     message(STATUS "kananlib: Building as part of another project")
     set(KANANLIB_STANDALONE_BUILD OFF)
+endif()
+
+# Add cmake module path
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
+# DIA SDK Detection
+if(KANANLIB_USE_DIA_SDK)
+    message(STATUS "kananlib: DIA SDK support requested")
+    find_package(DIASDK)
+    
+    if(DIASDK_FOUND)
+        set(KANANLIB_DIA_SDK_FOUND TRUE)
+        message(STATUS "kananlib: DIA SDK support will be enabled")
+    else()
+        set(KANANLIB_DIA_SDK_FOUND FALSE)
+        message(WARNING "kananlib: DIA SDK not found. Symbol resolution will be disabled.")
+        message(STATUS "kananlib: Install Visual Studio with C++ workload to get DIA SDK")
+    endif()
+else()
+    message(STATUS "kananlib: DIA SDK support disabled (set KANANLIB_USE_DIA_SDK=ON to enable)")
+    set(KANANLIB_DIA_SDK_FOUND FALSE)
 endif()
 
 include(FetchContent)
@@ -63,12 +85,12 @@ if(KANANLIB_FETCH_BDDISASM OR KANANLIB_STANDALONE_BUILD) # fetch-bddisasm
 
 endif()
 if(KANANLIB_FETCH_SPDLOG OR KANANLIB_STANDALONE_BUILD) # fetch-spdlog
-	message(STATUS "Fetching spdlog (v1.12.0)...")
+	message(STATUS "Fetching spdlog (v1.17.0)...")
 	FetchContent_Declare(spdlog
 		GIT_REPOSITORY
 			"https://github.com/gabime/spdlog"
 		GIT_TAG
-			v1.12.0
+			v1.17.0
 		GIT_SHALLOW
 			ON
 	)
@@ -86,6 +108,7 @@ list(APPEND kananlib_SOURCES
 	"src/Input.cpp"
 	"src/Memory.cpp"
 	"src/Module.cpp"
+	"src/PDB.cpp"
 	"src/Patch.cpp"
 	"src/Pattern.cpp"
 	"src/PointerHook.cpp"
@@ -95,6 +118,7 @@ list(APPEND kananlib_SOURCES
 	"src/String.cpp"
 	"src/Thread.cpp"
 	"src/VtableHook.cpp"
+	"src/compat/WinCompat.cpp"
 	"include/utility/Address.hpp"
 	"include/utility/Benchmark.hpp"
 	"include/utility/Config.hpp"
@@ -103,6 +127,7 @@ list(APPEND kananlib_SOURCES
 	"include/utility/Logging.hpp"
 	"include/utility/Memory.hpp"
 	"include/utility/Module.hpp"
+	"include/utility/PDB.hpp"
 	"include/utility/Patch.hpp"
 	"include/utility/Pattern.hpp"
 	"include/utility/PointerHook.hpp"
@@ -110,11 +135,22 @@ list(APPEND kananlib_SOURCES
 	"include/utility/Registry.hpp"
 	"include/utility/Scan.hpp"
 	"include/utility/ScopeGuard.hpp"
+	"include/utility/Seh.hpp"
 	"include/utility/String.hpp"
 	"include/utility/Thread.hpp"
 	"include/utility/VtableHook.hpp"
 	"include/utility/thirdparty/InstructionSet.hpp"
 	"include/utility/thirdparty/parallel-util.hpp"
+	"include/compat/intrin.h"
+	"include/compat/ppl.h"
+	"include/compat/rttidata.h"
+	"include/compat/seh_compat.h"
+	"include/compat/shlwapi.h"
+	"include/compat/tlhelp32.h"
+	"include/compat/vcruntime.h"
+	"include/compat/windows.h"
+	"include/compat/winnt_compat.h"
+	"include/compat/winternl.h"
 )
 
 list(APPEND kananlib_SOURCES
@@ -132,19 +168,49 @@ target_compile_features(kananlib PUBLIC
 	cxx_std_20
 )
 
-target_compile_options(kananlib PUBLIC
-	"/EHa"
-)
-
 target_include_directories(kananlib PUBLIC
 	include
 )
 
 target_link_libraries(kananlib PUBLIC
 	bddisasm::bddisasm
+	bddisasm::bdshemu
 	spdlog::spdlog
-	shlwapi
 )
+
+if (CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+    message(STATUS "MSVC")
+    target_compile_options(kananlib PRIVATE /EHa)
+else()
+    message(STATUS "CLANG")
+    target_compile_options(kananlib PRIVATE
+        -fasynchronous-unwind-tables
+        -fexceptions
+        -fms-extensions
+    )
+endif()
+
+# Win32 compatibility shim: on non-Windows, put the compat headers on the public
+# include path (so <Windows.h> etc. resolve) and link threading/dl. shlwapi is
+# a Windows-only dependency.
+if (WIN32)
+    target_link_libraries(kananlib PRIVATE shlwapi)
+else()
+    target_include_directories(kananlib PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include/compat")
+    find_package(Threads REQUIRED)
+    target_link_libraries(kananlib PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
+endif()
+
+# Configure DIA SDK if found
+if(KANANLIB_DIA_SDK_FOUND)
+    target_compile_definitions(kananlib PRIVATE KANANLIB_USE_DIA_SDK)
+    target_link_libraries(kananlib PRIVATE DIASDK::DIASDK)
+    if (CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+        target_link_options(kananlib PRIVATE /DELAYLOAD:msdia140.dll)
+        target_link_libraries(kananlib PRIVATE delayimp)
+    endif()
+    message(STATUS "kananlib: DIA SDK support enabled for kananlib target")
+endif()
 
 unset(CMKR_TARGET)
 unset(CMKR_SOURCES)
@@ -160,6 +226,7 @@ list(APPEND kananlib-nolog_SOURCES
 	"src/Input.cpp"
 	"src/Memory.cpp"
 	"src/Module.cpp"
+	"src/PDB.cpp"
 	"src/Patch.cpp"
 	"src/Pattern.cpp"
 	"src/PointerHook.cpp"
@@ -169,6 +236,7 @@ list(APPEND kananlib-nolog_SOURCES
 	"src/String.cpp"
 	"src/Thread.cpp"
 	"src/VtableHook.cpp"
+	"src/compat/WinCompat.cpp"
 	"include/utility/Address.hpp"
 	"include/utility/Benchmark.hpp"
 	"include/utility/Config.hpp"
@@ -177,6 +245,7 @@ list(APPEND kananlib-nolog_SOURCES
 	"include/utility/Logging.hpp"
 	"include/utility/Memory.hpp"
 	"include/utility/Module.hpp"
+	"include/utility/PDB.hpp"
 	"include/utility/Patch.hpp"
 	"include/utility/Pattern.hpp"
 	"include/utility/PointerHook.hpp"
@@ -184,11 +253,22 @@ list(APPEND kananlib-nolog_SOURCES
 	"include/utility/Registry.hpp"
 	"include/utility/Scan.hpp"
 	"include/utility/ScopeGuard.hpp"
+	"include/utility/Seh.hpp"
 	"include/utility/String.hpp"
 	"include/utility/Thread.hpp"
 	"include/utility/VtableHook.hpp"
 	"include/utility/thirdparty/InstructionSet.hpp"
 	"include/utility/thirdparty/parallel-util.hpp"
+	"include/compat/intrin.h"
+	"include/compat/ppl.h"
+	"include/compat/rttidata.h"
+	"include/compat/seh_compat.h"
+	"include/compat/shlwapi.h"
+	"include/compat/tlhelp32.h"
+	"include/compat/vcruntime.h"
+	"include/compat/windows.h"
+	"include/compat/winnt_compat.h"
+	"include/compat/winternl.h"
 )
 
 list(APPEND kananlib-nolog_SOURCES
@@ -206,23 +286,93 @@ target_compile_features(kananlib-nolog PUBLIC
 	cxx_std_20
 )
 
-target_compile_options(kananlib-nolog PUBLIC
-	"/EHa"
-)
-
 target_include_directories(kananlib-nolog PUBLIC
 	include
 )
 
 target_link_libraries(kananlib-nolog PUBLIC
 	bddisasm::bddisasm
+	bddisasm::bdshemu
 	spdlog::spdlog
-	shlwapi
 )
 
 target_compile_definitions(kananlib-nolog PUBLIC
 	SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_OFF
 )
+
+if (CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+    target_compile_options(kananlib-nolog PRIVATE /EHa)
+else()
+    target_compile_options(kananlib-nolog PRIVATE
+        -fasynchronous-unwind-tables
+        -fexceptions
+        -fms-extensions
+    )
+endif()
+
+if (WIN32)
+    target_link_libraries(kananlib-nolog PRIVATE shlwapi)
+else()
+    target_include_directories(kananlib-nolog PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include/compat")
+    find_package(Threads REQUIRED)
+    target_link_libraries(kananlib-nolog PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
+endif()
+
+# Configure DIA SDK if found
+if(KANANLIB_DIA_SDK_FOUND)
+    target_compile_definitions(kananlib-nolog PRIVATE KANANLIB_USE_DIA_SDK)
+    target_link_libraries(kananlib-nolog PRIVATE DIASDK::DIASDK)
+    if (CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+        target_link_options(kananlib-nolog PRIVATE /DELAYLOAD:msdia140.dll)
+        target_link_libraries(kananlib-nolog PRIVATE delayimp)
+    endif()
+    message(STATUS "kananlib: DIA SDK support enabled for kananlib-nolog target")
+endif()
+
+unset(CMKR_TARGET)
+unset(CMKR_SOURCES)
+
+# Target kananlib-cli
+set(CMKR_TARGET kananlib-cli)
+set(kananlib-cli_SOURCES "")
+
+list(APPEND kananlib-cli_SOURCES
+	"src/cli/kananlib-cli.cpp"
+)
+
+list(APPEND kananlib-cli_SOURCES
+	cmake.toml
+)
+
+set(CMKR_SOURCES ${kananlib-cli_SOURCES})
+add_executable(kananlib-cli)
+
+if(kananlib-cli_SOURCES)
+	target_sources(kananlib-cli PRIVATE ${kananlib-cli_SOURCES})
+endif()
+
+get_directory_property(CMKR_VS_STARTUP_PROJECT DIRECTORY ${PROJECT_SOURCE_DIR} DEFINITION VS_STARTUP_PROJECT)
+if(NOT CMKR_VS_STARTUP_PROJECT)
+	set_property(DIRECTORY ${PROJECT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT kananlib-cli)
+endif()
+
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${kananlib-cli_SOURCES})
+
+target_compile_features(kananlib-cli PRIVATE
+	cxx_std_20
+)
+
+target_include_directories(kananlib-cli PRIVATE
+	include
+)
+
+target_link_libraries(kananlib-cli PRIVATE
+	kananlib
+)
+
+if (CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+    target_compile_options(kananlib-cli PRIVATE /EHa)
+endif()
 
 unset(CMKR_TARGET)
 unset(CMKR_SOURCES)

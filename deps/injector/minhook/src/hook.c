@@ -87,13 +87,13 @@ typedef struct _FROZEN_THREADS
 //-------------------------------------------------------------------------
 
 // Spin lock flag for EnterSpinLock()/LeaveSpinLock().
-volatile LONG g_isLocked = FALSE;
+static volatile LONG g_isLocked = FALSE;
 
 // Private heap handle. If not NULL, this library is initialized.
-HANDLE g_hHeap = NULL;
+static HANDLE g_hHeap = NULL;
 
 // Hook entries.
-struct
+static struct
 {
     PHOOK_ENTRY pItems;     // Data heap
     UINT        capacity;   // Size of allocated data heap, items
@@ -410,13 +410,13 @@ static MH_STATUS EnableHookLL(UINT pos, BOOL enable)
     {
         PJMP_REL pJmp = (PJMP_REL)pPatchTarget;
         pJmp->opcode = 0xE9;
-        pJmp->operand = (UINT32)((LPBYTE)pHook->pDetour - (pPatchTarget + sizeof(JMP_REL)));
+        pJmp->operand = (INT32)((LPBYTE)pHook->pDetour - (pPatchTarget + sizeof(JMP_REL)));
 
         if (pHook->patchAbove)
         {
             PJMP_REL_SHORT pShortJmp = (PJMP_REL_SHORT)pHook->pTarget;
             pShortJmp->opcode = 0xEB;
-            pShortJmp->operand = (UINT8)(0 - (sizeof(JMP_REL_SHORT) + sizeof(JMP_REL)));
+            pShortJmp->operand = (INT8)(0 - (sizeof(JMP_REL_SHORT) + sizeof(JMP_REL)));
         }
     }
     else

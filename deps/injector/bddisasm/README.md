@@ -5,22 +5,20 @@ The Bitdefender disassembler (bddisasm) is a lightweight, x86/x64 only instructi
 ## Projects
 
 1. [bddisasm](https://github.com/bitdefender/bddisasm/tree/master/bddisasm) - this is the main disassembler project. In order to use the Bitdefender disassembler, all you have to do is build this project, and link with the output library. The only headers you need are located inside the `inc` folder.
-2. [bdshemu](https://github.com/bitdefender/bddisasm/tree/master/bdshemu) - this project makes use of the main bddisasm lib in order to build a simple, lightweight, fast, instructions emulator, designated to target shellcodes. This project is also integrated inside the disasmtool, so you can
-emulate raw binary files, and see their output. Note that this simple emulator supports basic x86/x64 instructions, and does not support emulating any kind of API call. In addition, the only supported memory accesses are inside the shellcode itself, and on the emulated stack.
-3. [isagenerator](https://github.com/bitdefender/bddisasm/tree/master/isagenerator) - this project contains the instruction definitions and the scripts required to generate the disassembly tables. If you wish to add support for a new instruction, this is the place. This project will automatically generate several header files (instructions.h, mnemonics.h, constants.h, table_\*.h), so please make sure you don't manually edit any of these files. You will need Python 3 to run the generation scripts.
+2. [bdshemu](https://github.com/bitdefender/bddisasm/tree/master/bdshemu) - this project makes use of the main bddisasm lib in order to build a simple, lightweight, fast, instructions emulator, designated to target shellcodes. This project is also integrated inside the disasmtool, so you can emulate raw binary files, and see their output. Note that this simple emulator supports basic x86/x64 instructions, and does not support emulating any kind of API call. In addition, the only supported memory accesses are inside the shellcode itself, and on the emulated stack.
+3. [isagenerator_x86](https://github.com/bitdefender/bddisasm/tree/master/isagenerator) - this project contains the instruction definitions and the scripts required to generate the disassembly tables. If you wish to add support for a new instruction, this is the place. This project will automatically generate several header files (instructions.h, mnemonics.h, constants.h, table_\*.h), so please make sure you don't manually edit any of these files. You will need Python 3 to run the generation scripts.
 4. [disasmtool](https://github.com/bitdefender/bddisasm/tree/master/disasmtool) - this project is a command line disassembler tool, used mainly as an example of how to integrate the bddisasm and bdshemu libraries.
-5. [disasmtool_lix](https://github.com/bitdefender/bddisasm/tree/master/disasmtool_lix) - like disasmtool, but for Linux.
-6. [bindings](https://github.com/bitdefender/bddisasm/tree/master/bindings) - bindings for [python](https://github.com/bitdefender/bddisasm/tree/master/bindings/pybddisasm), and [Rust](https://github.com/bitdefender/bddisasm/tree/master/bindings/rsbddisasm).
+5. [bindings](https://github.com/bitdefender/bddisasm/tree/master/bindings) - bindings for [python](https://github.com/bitdefender/bddisasm/tree/master/bindings/pybddisasm), and [Rust](https://github.com/bitdefender/bddisasm/tree/master/bindings/rsbddisasm).
 
-## Objectives
-
-The main objectives of this disassembler are:
+## Core Features
 
 1. Lightweight - it's written in C, with no external dependencies, no memory allocated, and thread safe by design.
-2. Fast - less than 300 CPU clocks on an Intel Core i7-8650U per decoded instruction (more than 7M instructions per second).
+2. Fast - measured on an Intel® Core™ Ultra 7 165H using BDDISASM v3.0:
+   - legacy decoder: around 240 CPU clocks per decoded instruction (~12M decoded instructions per second);
+   - mini decoder: around 150 CPU clocks per decoded instruction (~17M decoded instructions per second)
 3. Resilient - tested against internal fuzzers and the famous [mishegos](https://github.com/trailofbits/mishegos) tool.
 4. Easy to work with - just include the main header file, bddisasm.h, link with the bddisasm library, and call the NdDecode API!
-5. Complete - support every x86 instruction to date, and provide as much information as possible.
+5. Complete – comprehensive support for Intel and AMD x86 instructions implemented in modern CPUs, including rich per-instruction metadata.
 
 ## Build and install
 
@@ -161,13 +159,30 @@ The results will be in the bin directory in the root of the repository.
 
 [nd_vsnprintf_s and nd_memset](#nd_vsnprintf_s-and-nd_memset) will not be defined by `bddisasm`, integrators must provide these functions.
 
-## Decoding instructions
+## Using pre-compiled binaries
+
+Each release publishes static libraries, as well as the `disasmtool` CLI tool.
+
+You can verify these artifacts using [GitHub Artifact Attestation](https://github.blog/2024-05-02-introducing-artifact-attestations-now-in-public-beta/):
+
+```console
+# Verify a component
+$ gh attestation verify disasmtool -o bitdefender
+# Or the entire bundle
+$ gh attestation verify x86-windows-release.zip -o bitdefender
+```
+
+This is not available for bddisasm 2.1.4 or older.
+
+Note that this is currently a beta feature (see [Introducing Artifact Attestations–now in public beta](https://github.blog/2024-05-02-introducing-artifact-attestations-now-in-public-beta/) for details).
+
+## Decoding x86 instructions
 
 ### Decoding API
 
 There are 4 decoding functions, but internally, they all do the same, albeit some of them with implicit arguments:
 
-- `NDSTATUS NdDecode(INSTRUX *Instrux, const uint8_t *Code, uint8_t DefCode, uint8_t DefData)` - this API should be used only if you don't care about the length of the input buffer; 
+- `NDSTATUS NdDecode(INSTRUX *Instrux, const uint8_t *Code, uint8_t DefCode, uint8_t DefData)` - this API should be used only if you don't care about the length of the input buffer;
 - `NDSTATUS NdDecodeEx(INSTRUX *Instrux, const uint8_t *Code, size_t Size, uint8_t DefCode, uint8_t DefData);` - decode instruction from a buffer with maximum length `Size`;
 - `NDSTATUS NdDecodeEx2(INSTRUX *Instrux, const uint8_t *Code, size_t Size, uint8_t DefCode, uint8_t DefData, uint8_t DefStack, uint8_t PreferedVendor);` - decode instructions with a preferred vendor;
 - `NDSTATUS NdDecodeWithContext(INSTRUX *Instrux, const uint8_t *Code, size_t Size, ND_CONTEXT *Context);` - base decode API; the input parameters - `DefCode`, `DefData`, `DefStack`, `VendMode` and `FeatMode` must all be filled in the `Context` structure before calling this function. The Context structure should also be initialized using `NdInitContext` before the first decode call.
@@ -175,6 +190,19 @@ There are 4 decoding functions, but internally, they all do the same, albeit som
 Note that by default, the default vendor `ND_VEND_ANY` is used for decoding (which means that bddisasm will try to decode as much as possible). Also, the default features mask is `ND_FEAT_ALL`, meaning that bddisasm will optimistically try to decode instructions which are mapped onto the wide NOP space as well (for example, MPX or CET). If these parameters must be changed, it is advised to use the `NdDecodeWithContext` API.
 
 Converting decoded instructions to textual disassembly must be done using the `NdToText` API. bddisasm only supports Intel, masm-style syntax.
+
+### Minimal Decoding API
+
+The default (legacy) decoding API provides a large `INSTRUX` structure (around 480-bytes long) which contains all the possible information about the instruction, including all of the operands. When faster decoder performance and/or smaller `INSTRUX` is needed, the minimal decode API can be used:
+
+- `NDSTATUS NdDecodeMini(INSTRUX_MINI *Instrux, const uint8_t *Code, size_t Size, uint8_t DefCode)`
+- `NDSTATUS NdDecodeWithContextMini(INSTRUX_MINI *Instrux, const uint8_t *Code, size_t Size, ND_CONTEXT *Context);`
+
+The `INSTRUX_MINI` is only 64-bytes long, and provides all the core instruction information, except for the operands and metadata. If needed, operands can be accessed via the following new API:
+
+- `NDSTATUS NdGetOperandMini(const INSTRUX_MINI *Instrux, ND_UINT8 Index, ND_OPERAND *Operand);` - decodes instruction operand at index `Index`
+
+Each type of metadata can also be retrieved from an `INSTRUX_MINI` using API. For example, in order to retrieve the stack access type, `NdGetStackAccessMini` API can be used; to retrieve the valid modes, `NdGetValidModesMini` can be used, etc. Consult `bdx86_api_mini.h` for a list of all available APIs.
 
 ### Example
 
@@ -277,10 +305,10 @@ Working with the extended API is also trivial:
     INSTRUX ix;
     ND_CONTEXT ctx;
     uint8_t code[] = { 0x48, 0x8B, 0x48, 0x28 };
-    
+
     // This has to be done only once.
     NdInitContext(&ctx);
-    
+
     ctx.DefCode = ND_CODE_64;
     ctx.DefData = ND_DATA_64;
     ctx.DefStack = ND_STACK_64;
@@ -292,6 +320,34 @@ Working with the extended API is also trivial:
     ...
 ```
 
+Working with the minimal decoder is equally simple:
+
+```c
+    INSTRUX_MINI ix;
+    ND_CONTEXT ctx;
+    ND_OPERAND op;
+    char text[ND_MIN_BUF_SIZE];
+    uint8_t code[] = { 0x48, 0x8B, 0x48, 0x28 };
+
+    // This has to be done only once. The same context can be used by both the legacy and mini API!
+    NdInitContext(&ctx);
+
+    ctx.DefCode = ND_CODE_64;
+    ctx.DefData = ND_DATA_64;
+    ctx.DefStack = ND_STACK_64;
+    ctx.VendMode = ND_VEND_ANY;
+    ctx.FeatMode = ND_FEAT_ALL; // Use ND_FEAT_NONE, if you wish to see NOPs instead of MPX/CET/CLDEMOTE instructions.
+
+    // From here one, the ctx can be reused for any number of NdDecodeWithContextMini calls.
+    NDSTATUS status = NdDecodeWithContextMini(&ix, code, sizeof(code), &ctx);
+    ...
+    // Getting the first operand.
+    status = NdGetOperandMini(&ix, 0, &op);
+    ...
+    // Formatting the instruction.
+    status = NdToTextMini(&ix, 0, sizeof(text), text);
+    ...
+```
 ## Credits
 
 The entire Bitdefender HVI team.
