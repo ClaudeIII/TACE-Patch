@@ -1,0 +1,47 @@
+<!--
+  Extra pain-voice wave slots for TacePatch's [PAINVOICE] feature.
+
+  Paste these <Slot> blocks into pc/audio/config/waveslots.xml, inside the
+  top-level <WaveSlots> element. Order does not matter: the game reads the file
+  into a hash table keyed by Name.
+
+  One pair per configured voice, numbered by the Voice<N> ini key:
+
+      Voice1  ->  PAIN_EXTRA_0_0 / PAIN_EXTRA_0_1
+      Voice2  ->  PAIN_EXTRA_1_0 / PAIN_EXTRA_1_1
+      Voice3  ->  PAIN_EXTRA_2_0 / PAIN_EXTRA_2_1
+      Voice4  ->  PAIN_EXTRA_3_0 / PAIN_EXTRA_3_1
+
+  Sizes match the stock NIKO_0 / NIKO_1 pain slots, which are the largest of the
+  vanilla pain banks - 172032 bytes each, so a pair costs 336 KB of audio heap.
+  The heap is sized from the sum of every slot in this file, so adding slots
+  grows it rather than squeezing the existing ones.
+
+  A pair that is missing here is not fatal: TacePatch logs it and leaves those
+  peds on the generic PAIN_MALE / PAIN_FEMALE voice.
+-->
+
+  <Slot>
+    <Name content="ascii">PAIN_EXTRA_0_0</Name>
+    <MaxHeaderSize value="59392" />
+    <LoadType content="ascii">BANK</LoadType>
+    <Size value="172032" />
+  </Slot>
+  <Slot>
+    <Name content="ascii">PAIN_EXTRA_0_1</Name>
+    <MaxHeaderSize value="59392" />
+    <LoadType content="ascii">BANK</LoadType>
+    <Size value="172032" />
+  </Slot>
+  <Slot>
+    <Name content="ascii">PAIN_EXTRA_1_0</Name>
+    <MaxHeaderSize value="59392" />
+    <LoadType content="ascii">BANK</LoadType>
+    <Size value="172032" />
+  </Slot>
+  <Slot>
+    <Name content="ascii">PAIN_EXTRA_1_1</Name>
+    <MaxHeaderSize value="59392" />
+    <LoadType content="ascii">BANK</LoadType>
+    <Size value="172032" />
+  </Slot>
