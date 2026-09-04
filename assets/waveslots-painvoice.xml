@@ -45,3 +45,15 @@
     <LoadType content="ascii">BANK</LoadType>
     <Size value="172032" />
   </Slot>
+  <Slot>
+    <Name content="ascii">PAIN_EXTRA_2_0</Name>
+    <MaxHeaderSize value="59392" />
+    <LoadType content="ascii">BANK</LoadType>
+    <Size value="172032" />
+  </Slot>
+  <Slot>
+    <Name content="ascii">PAIN_EXTRA_2_1</Name>
+    <MaxHeaderSize value="59392" />
+    <LoadType content="ascii">BANK</LoadType>
+    <Size value="172032" />
+  </Slot>

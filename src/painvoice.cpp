@@ -169,7 +169,13 @@ namespace
     bool     (__cdecl    *IsGameSuspended)()                                    = nullptr;
     int      (__fastcall *OrigResolveVoice)(void *self, void *, int voice, const char *context) = nullptr;
     int      (__cdecl    *SpeechContextCount)(int voice, const char *context)   = nullptr;
+    bool     (__fastcall *IsPedMale)(void *ped, void *)                         = nullptr;
     uint32_t *gAudioTimer = nullptr;
+    uint32_t *gPainVoice  = nullptr;   // the PAIN_VOICE placeholder the dispatcher resolves
+
+    // Index of the stock "PLAYER" model, so a player wearing something else can
+    // be told apart from Niko.
+    int32_t gPlayerModelIndex = -1;
 
     // ---- vanilla slot access ----
     inline PainEntry *GameEntry(uint8_t *self, int slot, int entry)
@@ -436,9 +442,28 @@ extern "C" int __cdecl PainVoice_PickSlot(void *audioEntity, int gameSlot)
 
     uint8_t *ped = *reinterpret_cast<uint8_t **>(static_cast<uint8_t *>(audioEntity) + 8);
     if (ped == nullptr)
+    {
+        // Traced too: an absent ped here is indistinguishable in the log from
+        // never being called at all, and those need different fixes.
+        if (gTrace && gTraceLeft > 0)
+        {
+            gTraceLeft--;
+            TaceLog("[painvoice] pain: no ped on the audio entity, leaving slot %d", gameSlot);
+        }
         return gameSlot;
+    }
 
     const int32_t model = *reinterpret_cast<int16_t *>(ped + 0x2E);
+
+    if (gameSlot == 0)
+    {
+        static int32_t lastPlayerModel = -2;
+        if (model != lastPlayerModel)
+        {
+            lastPlayerModel = model;
+            TaceLog("[painvoice] player ped model is %d (PLAYER is %d)", model, gPlayerModelIndex);
+        }
+    }
 
     int chosen  = gameSlot;
     int matched = -1;
@@ -455,17 +480,29 @@ extern "C" int __cdecl PainVoice_PickSlot(void *audioEntity, int gameSlot)
         }
     }
 
-    // A matched voice whose bank is not resident stays on the generic one:
-    // handing playback a slot with nothing in it produces silence, not a voice.
+    // A matched voice whose bank is not resident stays off it: handing playback a
+    // slot with nothing in it produces silence, not a voice. This runs for the
+    // player too, so playing AS Johnny gets his bank the same way an NPC does.
     if (matched >= 0 && gExtra[matched].usable && gExtra[matched].resident[gExtra[matched].curEntry])
+    {
         chosen = kGameSlots + matched;
+    }
+    else if (gameSlot == 0 && gPlayerModelIndex >= 0 && model != gPlayerModelIndex &&
+             IsPedMale != nullptr)
+    {
+        // Slot 0 is Niko's own voice, and the game hands it to any single-player
+        // player ped. Wearing a different model that is wrong, so fall back on
+        // gender exactly as the multiplayer branch alongside it already does.
+        chosen = IsPedMale(ped, nullptr) ? 1 : 2;
+    }
 
     if (gTrace && gTraceLeft > 0)
     {
         gTraceLeft--;
         if (matched < 0)
         {
-            TaceLog("[painvoice] pain: model %d -> slot %d (no configured voice)", model, chosen);
+            TaceLog("[painvoice] pain: model %d -> slot %d (game said %d, no configured voice)",
+                    model, chosen, gameSlot);
         }
         else
         {
@@ -508,11 +545,12 @@ int __fastcall PainVoice_ResolveVoice(void *self, void *, int voice, const char 
 {
     const int result = OrigResolveVoice(self, nullptr, voice, context);
 
-    // Only the non-player pain branch yields these two, so matching on the result
-    // identifies that branch without needing the PAIN_VOICE global as well.
-    if (!gEnabled || self == nullptr || context == nullptr ||
-        (static_cast<uint32_t>(result) != kPainMaleExtras &&
-         static_cast<uint32_t>(result) != kPainFemaleExtras))
+    // Gate on the placeholder the dispatcher was asked to resolve rather than on
+    // what it resolved to. Matching the result would only catch NPCs, since for
+    // the player it returns the local player pain voice instead - and playing AS
+    // Johnny should get his own vocalisations too, the same as the natives give.
+    if (!gEnabled || self == nullptr || context == nullptr || gPainVoice == nullptr ||
+        static_cast<uint32_t>(voice) != *gPainVoice)
         return result;
 
     uint8_t *ped = *reinterpret_cast<uint8_t **>(static_cast<uint8_t *>(self) + 8);
@@ -573,6 +611,31 @@ int __fastcall PainVoice_ResolveVoice(void *self, void *, int voice, const char 
                     s.voiceNames[2].c_str());
         }
         return static_cast<int>(s.voiceHashes[0]);
+    }
+
+    // No configured voice for this model. The dispatcher's pain branch has only
+    // two outcomes - the generic pair for anyone else, or the local player's own
+    // voice - so a result that is neither generic means it took the player path.
+    // Wearing an unrelated model that is wrong for the same reason slot 0 is:
+    // the falls, burns and coughs would still be screamed in Niko's voice. Send
+    // them to the generic pair by gender, matching the slot choice made for the
+    // pain bank on the very same hit.
+    const bool tookPlayerBranch = static_cast<uint32_t>(result) != kPainMaleExtras &&
+                                  static_cast<uint32_t>(result) != kPainFemaleExtras;
+
+    if (tookPlayerBranch && gPlayerModelIndex >= 0 && model != gPlayerModelIndex &&
+        IsPedMale != nullptr)
+    {
+        const bool male = IsPedMale(ped, nullptr);
+
+        if (gTrace && gTraceLeft > 0)
+        {
+            gTraceLeft--;
+            TaceLog("[painvoice] extras: model %d context \"%s\" -> %s"
+                    " (player is not the PLAYER model)",
+                    model, context, male ? "PAIN_MALE_EXTRAS" : "PAIN_FEMALE_EXTRAS");
+        }
+        return static_cast<int>(male ? kPainMaleExtras : kPainFemaleExtras);
     }
 
     return result;
@@ -732,6 +795,8 @@ void PainVoice_Init()
     auto extras2  = find_pattern("8B 4D 0C 8B 55 14 51 52 8B CE 89 44 24 28 E8 ? ? ? ? "
                                  "56 B9 ? ? ? ? 89 45 14 E8 ? ? ? ?");
     auto ctxCount = find_pattern("8B 9C 24 20 05 00 00 56 53 8B F8 E8 ? ? ? ? 8B F0 83 C4 10 85 F6 7F 08");
+    auto voiceHead = find_pattern("83 EC 08 53 56 8B 74 24 14 3B 35 ? ? ? ? 57 8B F9 75 ? "
+                                  "8B 47 08 05 18 02 00 00 33 DB 38 18");
 
     const struct { const char *what; bool missing; } required[] = {
         { "slot accessors",    accessors.empty()   },
@@ -747,6 +812,7 @@ void PainVoice_Init()
         { "voice dispatcher",  extras1.empty()     },
         { "voice dispatcher 2", extras2.empty()    },
         { "speech context count", ctxCount.empty() },
+        { "PAIN_VOICE global", voiceHead.empty() },
     };
 
     bool ok = true;
@@ -793,6 +859,8 @@ void PainVoice_Init()
     injector::MakeNOP(nameRead.get_first(9), 2, true);
 
     SpeechContextCount = injector::GetBranchDestination(ctxCount.get_first(11), true).get();
+    IsPedMale          = injector::GetBranchDestination(selection.get_first(30), true).get();
+    gPainVoice         = *voiceHead.get_first<uint32_t *>(11);
 
     // Both sites call the same dispatcher; wrapping each in turn leaves
     // OrigResolveVoice pointing at the real one either way.
@@ -808,6 +876,10 @@ void PainVoice_OnInitMap()
 {
     if (!gEnabled || CModelInfoStore__GetModelByName == nullptr)
         return;
+
+    gPlayerModelIndex = -1;
+    CModelInfoStore__GetModelByName("PLAYER", &gPlayerModelIndex);
+    TaceLog("[painvoice] PLAYER model = %d", gPlayerModelIndex);
 
     for (int i = 0; i < gExtraCount; i++)
     {
