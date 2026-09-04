@@ -21,6 +21,8 @@ int32_t *_dwCurrentEpisode = nullptr;
 
 uint32_t GetAnimGroupIdForModel(uint32_t modelHash, eAnimGroup animGroup);
 void NewAnimationOverride(const char *modelName, const char *rifleAnim, const char *rpgAnim);
+void PainVoice_Init();
+void PainVoice_OnInitMap();
 
 //requests the animation to be loaded if it hasnt
 bool (*CAnimMgr__HasAnimLoaded)(uint32_t animGroup) = nullptr;
@@ -65,6 +67,8 @@ void __declspec(naked) CGame__InitMapH()
     CModelInfoStore__GetModelByName("M_Y_Multiplayer2", &ModelIndices::M_Y_Multiplayer2);
     CModelInfoStore__GetModelByName("F_Y_Multiplayer", &ModelIndices::F_Y_Multiplayer);
     CModelInfoStore__GetModelByName("F_Y_Multiplayer2", &ModelIndices::F_Y_Multiplayer2);
+
+    PainVoice_OnInitMap();
 
     _asm
     {
@@ -190,10 +194,15 @@ void __declspec(naked) IsMultiplayerModelMale()
     }
 }
 
+void InitializeAllLimitAdjusters();
+
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
 {
     if(fdwReason == DLL_PROCESS_ATTACH)
     {
+        InitializeAllLimitAdjusters();
+        PainVoice_Init();
+
         hook::pattern pattern {};
 
         pattern = hook::pattern("8B C8 E8 ? ? ? ? B9 ? ? ? ? A3");
