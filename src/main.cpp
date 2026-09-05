@@ -269,6 +269,45 @@ namespace
         injector::MakeNOP(p.get_first(offset), bytes, true);
         return true;
     }
+
+    // Patches EVERY match, not just the first.
+    //
+    // get_first() returns match 0 and only match 0, so a signature covering
+    // several gates has always patched one of them and left the rest in place
+    // silently - which meant some DLC content stayed locked to its own episode.
+    // `expected` is the number of sites reviewed on 1.0.8.0; a different count
+    // on another build is reported rather than assumed.
+    //
+    // The guard: in `cmp dword [global], imm` the compared global sits at
+    // offset 2, and every gate one patch covers must test the SAME global. When
+    // they disagree the signature has drifted onto unrelated code - exactly the
+    // case with "Parachute anims", whose second match was a `cmp [x], 0` with
+    // nothing to do with episodes. Those sites are skipped, not NOPed.
+    bool NopPatchAll(const char *what, const char *sig, uintptr_t offset, size_t expected,
+                     size_t bytes = 2)
+    {
+        hook::pattern p(sig);
+        ReportPattern(what, p, expected);
+        if (p.empty())
+            return false;
+
+        const uint32_t gate = *p.get(0).get<uint32_t>(2);
+        size_t done = 0;
+        for (size_t i = 0; i < p.size(); i++)
+        {
+            const uint32_t here = *p.get(i).get<uint32_t>(2);
+            if (here != gate)
+            {
+                TACE_WARN("[patch] %s: site %zu tests %08X, not %08X - skipped as unrelated",
+                          what, i, here, gate);
+                continue;
+            }
+            injector::MakeNOP(p.get(i).get<void>(offset), bytes, true);
+            done++;
+        }
+        TACE_TRACE("[patch] %s: %zu of %zu site(s) patched", what, done, p.size());
+        return done > 0;
+    }
 }
 
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
@@ -338,7 +377,13 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
         injector::MakeCALL(pattern.get_first(0), IsPedFemale);
 
         {
-            NopPatch("E2 Bullet traces", "83 3D ? ? ? ? ? 75 07 68 ? ? ? ? EB 05 68 ? ? ? ?", 7);
+            // The episode immediate is pinned to 02 deliberately. Wildcarded, this
+            // signature also matched a `cmp episode,1` that picks between the
+            // "PU_SEADONE" / "PU_SEADONEE2" pickup names - and since get_first()
+            // returns match 0, THAT is the site this patch used to NOP, leaving
+            // wpn_bullet_trace_e2 locked to TBoGT. Pinning it lands on the gate
+            // the name describes and leaves the pickup names alone.
+            NopPatch("E2 Bullet traces", "83 3D ? ? ? ? 02 75 07 68 ? ? ? ? EB 05 68 ? ? ? ?", 7);
 
             NopPatch("TBoGT counter anims fix #1", "83 3D ? ? ? ? ? 53 55 8B 6C 24 20 57 8B F9 BB ? ? ? ? 75 29", 21);
 
@@ -348,7 +393,10 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
             //if (!pattern.empty())
             //    injector::MakeNOP(pattern.get_first(7), 2, true);
 
-            NopPatch("parachute wind sounds", "83 3D ? ? ? ? ? 75 0A F3 0F 10 05 ? ? ? ?", 7);
+            // One signature, two gates, and it was written out twice under two names -
+            // so site 0 was NOPed twice and site 1 never. Both are patched here.
+            NopPatchAll("parachute wind sounds / explosive weapons networking",
+                        "83 3D ? ? ? ? 02 75 0A F3 0F 10 05 ? ? ? ?", 7, 2);
 
             NopPatch("disco camera shake #1", "83 3D ? ? ? ? ? 8A 81", 18);
 
@@ -418,7 +466,11 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
 
             NopPatch("dsr1 hud", "83 3D ? ? ? ? ? 75 5B 83 3D ? ? ? ? ?", 7);
 
-            NopPatch("Sniper rifle checks #1", "83 3D ? ? ? ? ? 75 0E F3 0F 10 05 ? ? ? ?", 7);
+            // Two episode-2 gates, only one of which was ever patched. Wildcarded, the
+            // signature also caught a `cmp episode,1` loading the TLAD value in a
+            // third function; that one is left alone on purpose - forcing a TLAD
+            // constant would override TBoGT's own in that path.
+            NopPatchAll("Sniper rifle checks #1", "83 3D ? ? ? ? 02 75 0E F3 0F 10 05 ? ? ? ?", 7, 2);
 
             NopPatch("Sniper rifle checks #2", "83 3D ? ? ? ? ? 75 04 B3 01 EB 02", 7);
 
@@ -426,7 +478,8 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
 
             NopPatch("exp aa12 & apc cannon", "39 3D ? ? ? ? 7C 14 8B 46 18", 6);
 
-            NopPatch("explosive weapons networking", "83 3D ? ? ? ? ? 75 0A F3 0F 10 05 ? ? ? ?", 7);
+            // (explosive weapons networking shares the signature above and is
+            //  patched by it - it used to be a second call that re-NOPed site 0.)
 
             NopPatch("weap checks? nearby explosive weapon checks", "83 3D ? ? ? ? ? 75 22 83 F8 02 75 1D", 7);
 
@@ -468,7 +521,10 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
 
             NopPatch("BikePhoneAnimsFix", "83 3D ? ? ? ? ? 0F 8C ? ? ? ? F6 86 ? ? ? ? ?", 7, 6);
 
-            NopPatch("Parachute anims", "83 3D ? ? ? ? ? 75 14 E8", 7);
+            // Pinned to 02: the second match of the wildcarded form was a `cmp [x],0`
+            // on an unrelated global. Behaviour is unchanged - that site was never
+            // patched - but the signature can no longer reach it.
+            NopPatch("Parachute anims", "83 3D ? ? ? ? 02 75 14 E8", 7);
 
             NopPatch("Parachute #1", "83 3D ? ? ? ? ? 7C 0D F3 0F 10 05 ? ? ? ?", 7);
 
@@ -522,7 +578,8 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
 
             NopPatch("EpisodicVehicleSupport (BUZZARD) #2", "83 3D ? ? ? ? ? 7C 58 0F BF 4E 2E 3B 0D ? ? ? ?", 7);
 
-            NopPatch("EpisodicVehicleSupport (BUZZARD) #3", "83 3D ? ? ? ? ? 0F 8C ? ? ? ? 0F BF 46 2E 3B 05 ? ? ? ? 74 0C", 7, 6);
+            NopPatchAll("EpisodicVehicleSupport (BUZZARD) #3",
+                        "83 3D ? ? ? ? 02 0F 8C ? ? ? ? 0F BF 46 2E 3B 05 ? ? ? ? 74 0C", 7, 2, 6);
             
             NopPatch("EpisodicVehicleSupport (BUZZARD) #4", "83 3D ? ? ? ? ? F3 0F 11 44 24 ? F3 0F 10 40 ? F3 0F 11 44 24 ? 0F 85 ? ? ? ?", 24, 6);
 
@@ -544,7 +601,8 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
 
             NopPatch("EpisodicVehicleSupport Boat models #1", "83 3D ? ? ? ? ? 75 5A 3B 05 ? ? ? ? 75 19", 7);
 
-            NopPatch("EpisodicVehicleSupport Boat models #2", "83 3D ? ? ? ? ? 75 3C 3B 05 ? ? ? ? 75 0A", 7);
+            NopPatchAll("EpisodicVehicleSupport Boat models #2",
+                        "83 3D ? ? ? ? 02 75 3C 3B 05 ? ? ? ? 75 0A", 7, 2);
 
             NopPatch("EpisodicVehicleSupport Boat models #3", "EB 61 3B 05 ? ? ? ? 75 0A F3 0F 10 05 ? ? ? ? EB 4F 3B 05 ? ? ? ? 75 0A F3 0F 10 05 ? ? ? ? EB 3D 83 3D ? ? ? ? ? 75 3C", 45);
 
