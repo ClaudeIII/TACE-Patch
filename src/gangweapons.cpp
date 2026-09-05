@@ -15,6 +15,7 @@
 #include "Config.h"
 #include "Log.h"
 #include "Patterns.h"
+#include "Weapons.h"
 
 // ============================================================================
 // Gang weapon loadouts.
@@ -53,39 +54,6 @@ namespace
 {
     constexpr int kGangCount = 12;
 
-    struct NamedId { const char *name; int id; };
-
-    // Weapon ids, per the GTA IV weapon enum. The EPISODIC_n names are the
-    // engine's own; the friendlier aliases are what those slots actually hold.
-    const NamedId kWeapons[] = {
-        { "UNARMED", 0 }, { "BASEBALLBAT", 1 }, { "POOLCUE", 2 }, { "KNIFE", 3 },
-        { "GRENADE", 4 }, { "MOLOTOV", 5 }, { "ROCKET", 6 }, { "PISTOL", 7 },
-        { "DEAGLE", 9 }, { "SHOTGUN", 10 }, { "BARETTA", 11 }, { "MICRO_UZI", 12 },
-        { "MP5", 13 }, { "AK47", 14 }, { "M4", 15 }, { "SNIPERRIFLE", 16 },
-        { "M40A1", 17 }, { "RLAUNCHER", 18 }, { "FTHROWER", 19 }, { "MINIGUN", 20 },
-        { "EPISODIC_1", 21 },  { "GRENADE_LAUNCHER", 21 },
-        { "EPISODIC_2", 22 },  { "ASSAULT_SHOTGUN", 22 },
-        { "EPISODIC_4", 24 },  { "BROKEN_POOL_CUE", 24 },
-        { "EPISODIC_6", 26 },  { "SAWNOFF_SHOTGUN", 26 },
-        { "EPISODIC_7", 27 },  { "AUTOMATIC_PISTOL", 27 },
-        { "EPISODIC_8", 28 },  { "PIPE_BOMB", 28 },
-        { "EPISODIC_9", 29 },  { "PISTOL_44", 29 },
-        { "EPISODIC_11", 31 }, { "AA12", 31 },
-        { "EPISODIC_12", 32 }, { "P90", 32 },
-        { "EPISODIC_13", 33 }, { "GOLDEN_UZI", 33 },
-        { "EPISODIC_14", 34 }, { "M249", 34 },
-        { "EPISODIC_15", 35 }, { "ADVANCED_SNIPER", 35 },
-        { "EPISODIC_16", 36 }, { "STICKY_BOMB", 36 },
-    };
-
-    // The twelve gangs, by the value actually stored at modelInfo+0x12C.
-    //
-    // NOT the same numbering as the 71-entry name table the relationship data
-    // parses against: this field omits PLAYER, so every value is one lower.
-    // COP is 2 here, which is what CPedFactoryNY__m10 tests before handing a ped
-    // a pistol and armour. Getting this wrong is subtle - the loadouts still get
-    // written, just to the entry next door - so it reads as "the patch does
-    // nothing" while the gang quietly uses its neighbour's guns.
     const NamedId kPedTypes[] = {
         { "GANG_ALBANIAN", 3 }, { "GANG_BIKER_1", 4 }, { "GANG_BIKER_2", 5 },
         { "GANG_ITALIAN", 6 }, { "GANG_RUSSIAN", 7 }, { "GANG_RUSSIAN_2", 8 },
@@ -112,39 +80,6 @@ namespace
     int       gTraceLeft = 0;
     int       gFirstPedType = 3;
 
-    std::string Trim(std::string s)
-    {
-        while (!s.empty() && (s.front() == ' ' || s.front() == '\t')) s.erase(s.begin());
-        while (!s.empty() && (s.back()  == ' ' || s.back()  == '\t')) s.pop_back();
-        return s;
-    }
-
-    bool LookUp(const NamedId *table, size_t count, const std::string &token, int &out)
-    {
-        if (!token.empty() && (isdigit(static_cast<unsigned char>(token[0])) != 0))
-        {
-            out = atoi(token.c_str());
-            return true;
-        }
-        for (size_t i = 0; i < count; i++)
-        {
-            if (_stricmp(table[i].name, token.c_str()) == 0)
-            {
-                out = table[i].id;
-                return true;
-            }
-        }
-        return false;
-    }
-
-    const char *WeaponName(int id)
-    {
-        for (const NamedId &w : kWeapons)
-            if (w.id == id)
-                return w.name;
-        return "?";
-    }
-
     // "<weapon>,<chance>, <weapon>,<chance>, <weapon>,<chance>"
     bool ParseLoadout(const std::string &value, int weapon[3], int chance[3])
     {
@@ -153,7 +88,7 @@ namespace
         for (;;)
         {
             const size_t comma = value.find(',', start);
-            parts.push_back(Trim(value.substr(start, comma - start)));
+            parts.push_back(TrimToken(value.substr(start, comma - start)));
             if (comma == std::string::npos)
                 break;
             start = comma + 1;
@@ -163,7 +98,7 @@ namespace
 
         for (int i = 0; i < 3; i++)
         {
-            if (!LookUp(kWeapons, sizeof(kWeapons) / sizeof(kWeapons[0]), parts[i * 2], weapon[i]))
+            if (!LookUpWeapon(parts[i * 2], weapon[i]))
                 return false;
             chance[i] = atoi(parts[i * 2 + 1].c_str());
 
@@ -171,7 +106,7 @@ namespace
             // in, so an id above 127 would land as a negative. Every real id is
             // far below that. The chance only ever survives as its low byte, so
             // 0..255 is the honest range there.
-            if (weapon[i] < 0 || weapon[i] > 127 || chance[i] < 0 || chance[i] > 255)
+            if (chance[i] < 0 || chance[i] > 255)
                 return false;
         }
         return true;
