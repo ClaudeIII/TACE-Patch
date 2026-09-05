@@ -24,6 +24,7 @@ void NewAnimationOverride(const char *modelName, const char *rifleAnim, const ch
 void PainVoice_Init();
 void PainVoice_OnInitMap();
 void GangWeapons_Init();
+void CopWeapons_Init();
 
 //requests the animation to be loaded if it hasnt
 bool (*CAnimMgr__HasAnimLoaded)(uint32_t animGroup) = nullptr;
@@ -204,6 +205,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
         InitializeAllLimitAdjusters();
         PainVoice_Init();
         GangWeapons_Init();
+        CopWeapons_Init();
 
         hook::pattern pattern {};
 
