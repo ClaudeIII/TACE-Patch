@@ -1770,8 +1770,14 @@ interesting rather than live.
   0047C3B3  D754  load        mov edx, dword ptr [0x112d754]     | .cli / %s.cli / UIParent / UIMouseCursor
   0047C4E1  D754  load        mov edx, dword ptr [0x112d754]     | MO_BENCH_TEST
   0047CD1B  D754  load        mov edx, dword ptr [0x112d754]     
+  0047CD27  D76C  store       mov dword ptr [0x112d76c], edx     
+  0047DE12  D754  load-index  mov ecx, dword ptr [0x112d754]     | MO_RPYQUIT / MO_UPLOAD_WARN / UIUpload / MO_TBENCHWARN
+  0047DE1F  D76C  store       mov dword ptr [0x112d76c], ecx     | MO_RPYQUIT / MO_UPLOAD_WARN / UIUpload / MO_TBENCHWARN
   0047ECF2  D754  load        mov ecx, dword ptr [0x112d754]     
+  0047ECF8  D76C  store       mov dword ptr [0x112d76c], ecx     
   0048052A  D754  load        mov eax, dword ptr [0x112d754]     
+  00480536  D76C  store       mov dword ptr [0x112d76c], eax     
+  004809EB  D788  store       mov dword ptr [0x112d788], edi     | UIScreen
   0048BCBB  D754  load        mov esi, dword ptr [0x112d754]     
   0048C7DC  D754  load        mov esi, dword ptr [0x112d754]     
   0048D9BC  D754  load        mov ecx, dword ptr [0x112d754]     
@@ -1782,14 +1788,21 @@ interesting rather than live.
   0048DCB2  D754  load        mov eax, dword ptr [0x112d754]     
   0048DCD6  D754  load        mov eax, dword ptr [0x112d754]     
   0048DCF6  D754  load        mov eax, dword ptr [0x112d754]     
+  00490581  D788  store       mov dword ptr [0x112d788], esi     
+  00490587  D76C  store       mov dword ptr [0x112d76c], esi     
   00493E20  D788  load        mov eax, dword ptr [0x112d788]     
   00493E27  D754  load        mov edi, dword ptr [0x112d754]     
+  00493E2D  D754  store       mov dword ptr [0x112d754], eax     
+  004941DC  D788  store       mov dword ptr [0x112d788], edi     | FE_NODLC3 / FE_NODLC2
   0049425B  D754  load        mov eax, dword ptr [0x112d754]     | FE_NODLC3 / FE_NODLC2
+  004942A4  D788  store       mov dword ptr [0x112d788], ebx     | FE_NODLC3 / FE_NODLC2
+  00494622  D76C  store       mov dword ptr [0x112d76c], esi     
   004946F0  D788  load        mov eax, dword ptr [0x112d788]     
   004949E4  D76C  load        mov esi, dword ptr [0x112d76c]     
   00494A47  D754  load        mov eax, dword ptr [0x112d754]     
   00494A74  D76C  load        mov eax, dword ptr [0x112d76c]     
   00494C5B  D754  load        mov eax, dword ptr [0x112d754]     
+  00494C60  D76C  store       mov dword ptr [0x112d76c], eax     
   00494D96  D754  load        mov eax, dword ptr [0x112d754]     
   004971C0  D754  load        mov ecx, dword ptr [0x112d754]     | platform:/textures/leaderboards / PLRankIcons / update:xbox360/textures/Leaderboards.xtd
   004971DA  D754  load        mov edx, dword ptr [0x112d754]     | platform:/textures/leaderboards / PLRankIcons / update:xbox360/textures/Leaderboards.xtd
@@ -1822,10 +1835,19 @@ interesting rather than live.
   0049AAF9  D754  load        mov eax, dword ptr [0x112d754]     
   0049C39A  D788  load        mov ebx, dword ptr [0x112d788]     
   006C64F1  D754  load        mov eax, dword ptr [0x112d754]     
+  007D4642  D788  push-arg    push 0x112d788                     | GameLogic
+  007D4665  D754  store       mov dword ptr [0x112d754], eax     | GameLogic
+  007D466F  D76C  store       mov dword ptr [0x112d76c], eax     | GameLogic
+  007D4679  D788  store       mov dword ptr [0x112d788], eax     | GameLogic
   007E0445  D754  load        mov edx, dword ptr [0x112d754]     
   00858260  D754  load        mov eax, dword ptr [0x112d754]     
   00859493  D754  load        mov eax, dword ptr [0x112d754]     | SG_HDG_SAVE
+  0085C5BB  D788  store       mov dword ptr [0x112d788], eax     
   0089154C  D754  load        mov eax, dword ptr [0x112d754]     
+  008916A1  D76C  store       mov dword ptr [0x112d76c], eax     
+  008916F3  D76C  store       mov dword ptr [0x112d76c], 0       
+  008D42FA  D788  store       mov dword ptr [0x112d788], eax     
+  008D42FF  D76C  store       mov dword ptr [0x112d76c], eax     
   008D5BB8  D754  load        mov edx, dword ptr [0x112d754]     
   009A2C62  D754  load        mov esi, dword ptr [0x112d754]     | NONE
   009D98F8  D754  load        mov eax, dword ptr [0x112d754]     | .meta / Videos\Rendered / .wmv / gta4 / tbogt
@@ -1837,27 +1859,5 @@ interesting rather than live.
   00B49BEE  D754  load        mov esi, dword ptr [0x112d754]     
   00B4FA60  D754  load        mov eax, dword ptr [0x112d754]     
   00B7BC9D  D754  load        mov ecx, dword ptr [0x112d754]     
-  0047DE12  D754  load-index  mov ecx, dword ptr [0x112d754]     | MO_RPYQUIT / MO_UPLOAD_WARN / UIUpload / MO_TBENCHWARN
-  007D4642  D788  push-arg    push 0x112d788                     | GameLogic
-  0047CD27  D76C  store       mov dword ptr [0x112d76c], edx     
-  0047DE1F  D76C  store       mov dword ptr [0x112d76c], ecx     | MO_RPYQUIT / MO_UPLOAD_WARN / UIUpload / MO_TBENCHWARN
-  0047ECF8  D76C  store       mov dword ptr [0x112d76c], ecx     
-  00480536  D76C  store       mov dword ptr [0x112d76c], eax     
-  004809EB  D788  store       mov dword ptr [0x112d788], edi     | UIScreen
-  00490581  D788  store       mov dword ptr [0x112d788], esi     
-  00490587  D76C  store       mov dword ptr [0x112d76c], esi     
-  00493E2D  D754  store       mov dword ptr [0x112d754], eax     
-  004941DC  D788  store       mov dword ptr [0x112d788], edi     | FE_NODLC3 / FE_NODLC2
-  004942A4  D788  store       mov dword ptr [0x112d788], ebx     | FE_NODLC3 / FE_NODLC2
-  00494622  D76C  store       mov dword ptr [0x112d76c], esi     
-  00494C60  D76C  store       mov dword ptr [0x112d76c], eax     
-  007D4665  D754  store       mov dword ptr [0x112d754], eax     | GameLogic
-  007D466F  D76C  store       mov dword ptr [0x112d76c], eax     | GameLogic
-  007D4679  D788  store       mov dword ptr [0x112d788], eax     | GameLogic
-  0085C5BB  D788  store       mov dword ptr [0x112d788], eax     
-  008916A1  D76C  store       mov dword ptr [0x112d76c], eax     
-  008916F3  D76C  store       mov dword ptr [0x112d76c], 0       
-  008D42FA  D788  store       mov dword ptr [0x112d788], eax     
-  008D42FF  D76C  store       mov dword ptr [0x112d76c], eax     
 
 END
