@@ -1,5 +1,6 @@
 #define _CRT_SECURE_NO_WARNINGS
 
+#include <string>
 #include <unordered_map>
 
 #include <injector/injector.hpp>
@@ -217,6 +218,7 @@ void InitializeAllLimitAdjusters();
 namespace
 {
     int gPatchApplied = 0;
+    int gPatchAlready = 0;   // gate already opened by an earlier entry
     int gPatchMissing = 0;
     int gPatchAmbiguous = 0;
 
@@ -260,9 +262,78 @@ namespace
     // The episodic patches: NOP out an episode check so DLC content is active
     // in every episode. Same semantics as the hand-written form it replaces -
     // match, bail if absent, NOP - with the outcome recorded.
+    // Rewrites a signature with the bytes this patch would overwrite turned into
+    // wildcards, so it can still be found after something else has NOPed it.
+    std::string Relaxed(const char *sig, uintptr_t offset, size_t bytes)
+    {
+        std::string out;
+        size_t index = 0;
+        for (const char *t = sig; *t;)
+        {
+            while (*t == ' ') t++;
+            if (!*t) break;
+            const char *end = t;
+            while (*end && *end != ' ') end++;
+            if (!out.empty()) out += ' ';
+            out += (index >= offset && index < offset + bytes) ? "?" : std::string(t, end);
+            t = end;
+            index++;
+        }
+        return out;
+    }
+
+    // Two entries in this file sometimes describe the SAME gate - a pinned
+    // variant and a wildcarded one, written at different times. Whichever runs
+    // first NOPs it, and the second then fails to match its own signature and
+    // reports "not found", which is true and completely useless: the gate is
+    // open. Re-scan with the target bytes wildcarded, and if that lands on the
+    // expected number of sites and they are already NOPs, say so instead.
+    //
+    // Only ever a fallback. Wildcarding the target wholesale would be far too
+    // lossy - for some of these signatures the NOPed bytes are most of what
+    // makes them unique (one goes from 1 match to 281).
+    bool AlreadyOpen(const char *what, const char *sig, uintptr_t offset, size_t bytes,
+                     size_t expected = 1)
+    {
+        hook::pattern p(Relaxed(sig, offset, bytes));
+        if (p.size() != expected)
+            return false;
+        for (size_t i = 0; i < p.size(); i++)
+        {
+            const uint8_t *at = p.get(i).get<uint8_t>(offset);
+            for (size_t b = 0; b < bytes; b++)
+                if (at[b] != 0x90)
+                    return false;
+        }
+        gPatchAlready++;
+        TACE_INFO("[patch] %s: already open - an earlier patch NOPs the same gate", what);
+        return true;
+    }
+
     bool NopPatch(const char *what, const char *sig, uintptr_t offset, size_t bytes = 2)
     {
         hook::pattern p(sig);
+        if (p.empty() && AlreadyOpen(what, sig, offset, bytes))
+            return true;
+        ReportPattern(what, p);
+        if (p.empty())
+            return false;
+        injector::MakeNOP(p.get_first(offset), bytes, true);
+        return true;
+    }
+
+    // One gate, more than one spelling. Tries each signature in turn - the same
+    // idea as find_pattern() in Patterns.h, which carries per-build variants.
+    // Both spellings are kept rather than the loser deleted: a build where one
+    // form drifts may still match the other.
+    bool NopPatchAny(const char *what, uintptr_t offset, size_t bytes,
+                     const char *sigA, const char *sigB)
+    {
+        hook::pattern p(sigA);
+        if (p.empty())
+            p = hook::pattern(sigB);
+        if (p.empty() && AlreadyOpen(what, sigA, offset, bytes))
+            return true;
         ReportPattern(what, p);
         if (p.empty())
             return false;
@@ -287,6 +358,19 @@ namespace
                      size_t bytes = 2)
     {
         hook::pattern p(sig);
+        if (p.size() != expected)
+        {
+            // Fewer sites than were reviewed usually means an earlier entry
+            // already NOPed one of them - check before calling it a problem.
+            hook::pattern relaxed(Relaxed(sig, offset, bytes));
+            if (relaxed.size() == expected)
+            {
+                TACE_INFO("[patch] %s: %zu of %zu site(s) already open, patching the rest",
+                          what, expected - p.size(), expected);
+                gPatchAlready++;
+                p = relaxed;
+            }
+        }
         ReportPattern(what, p, expected);
         if (p.empty())
             return false;
@@ -489,13 +573,15 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
 
             NopPatch("CTaskSimplePlayerAimProjectile::process", "83 3D ? ? ? ? ? 75 1C 8B 47 18 50 E8 ? ? ? ?", 7);
 
-            NopPatch("CTaskSimpleThrowProjectile::process", "83 3D ? ? ? ? ? 0F 85 ? ? ? ? 8B 46 4C", 7, 6);
+            NopPatchAny("CTaskSimpleThrowProjectile::process", 7, 6,
+                        "83 3D ? ? ? ? ? 0F 85 ? ? ? ? 8B 46 4C",
+                        "83 3D ? ? ? ? 02 0F 85 8C 01 00 00");   // 2nd spelling was its own entry
 
-            NopPatch("Sticky bomb CTaskSimpleThrowProjectile::process", "83 3D ? ? ? ? 02 0F 85 8C 01 00 00", 7, 6);
 
-            NopPatch("Sticky bomb something #1", "83 3D ? ? ? ? ? 75 29 8B 44 24 04", 7);
+            NopPatchAny("Sticky bomb something", 7, 2,
+                        "83 3D ? ? ? ? ? 75 29 8B 44 24 04",
+                        "83 3D ? ? ? ? ? 75 29 8B 44 24 04 8A 88 ? ? ? ?");   // was #1 and #2
 
-            NopPatch("Sticky bomb something #2", "83 3D ? ? ? ? ? 75 29 8B 44 24 04 8A 88 ? ? ? ?", 7);
 
             NopPatch("Sticky bomb drop icon", "83 3D ? ? ? ? 02 75 20 8B CD E8", 7);
 
@@ -534,7 +620,9 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
 
             NopPatch("parachute extended camera", "83 3D ? ? ? ? ? 0F 85 ? ? ? ? 8B 54 24 0C", 7, 6);
 
-            NopPatch("Buzzards minigun", "83 3D ? ? ? ? ? 7C 1F 8B 56 18", 7);
+            NopPatchAny("Buzzards minigun", 7, 2,
+                        "83 3D ? ? ? ? ? 7C 1F 8B 56 18",
+                        "83 3D ? ? ? ? 02 7C 1F 8B");   // 2nd spelling was a BUZZARD entry
  
             NopPatch("EpisodicVehicleSupport (APC) #1", "83 3D ? ? ? ? 02 0F 8C 0E 05 00 00", 7, 6);
 
@@ -591,7 +679,6 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
 
             NopPatch("EpisodicVehicleSupport (BUZZARD) weapon effects", "83 3D ? ? ? ? 02 7C 43", 7);
 
-            NopPatch("EpisodicVehicleSupport (BUZZARD) minigun #1", "83 3D ? ? ? ? 02 7C 1F 8B", 7);
 
             NopPatch("EpisodicVehicleSupport (BUZZARD) minigun #2", "83 3D ? ? ? ? 02 7C 11 8B 4E", 7);
 
@@ -641,8 +728,8 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
 
         NopPatch("Achievement/Rank10 unlocks for all episodes #11", "85 D2 8B 40 04 75 0E", 5);*/
 
-        TACE_INFO("[patch] %d signature patch(es) applied, %d not found, %d ambiguous",
-                  gPatchApplied, gPatchMissing, gPatchAmbiguous);
+        TACE_INFO("[patch] %d applied, %d already open, %d not found, %d ambiguous",
+                  gPatchApplied, gPatchAlready, gPatchMissing, gPatchAmbiguous);
         TaceLog_Summary();
     }
 
