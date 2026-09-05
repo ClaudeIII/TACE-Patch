@@ -1,355 +1,720 @@
-GTA IV 1.0.8.0 - EPISODE GATE INVENTORY
+GTA IV 1.0.8.0 - EPISODE GATE INVENTORY  (executable only)
 ==============================================================================
 
-Generated 2026-09-05 from GTAIV.exe 1.0.8.0 (ImageBase 00400000).
+Generated 2026-09-05 from GTAIV.exe 1.0.8.0, ImageBase 00400000.
 
 *** FINDINGS ONLY. Nothing here is implemented, patched or recommended. ***
 
-This is a list of every place the game still branches on which episode is
-loaded, and which of those TacePatch already opens.
+Every place the executable branches on which episode is loaded, across all
+three episode globals and every instruction shape - not just the easy ones.
+
+THE THREE GLOBALS
+  0112D754  - the global the branches overwhelmingly read        464 refs
+  0112D788  - what TacePatch's _dwCurrentEpisode resolves to      63 refs
+  0112D76C  - third mirror                                        14 refs
+
+  They are mirrors written together at init. Code branches on all three, so
+  a scan of any one of them alone is incomplete - the previous version of
+  this file covered 0112D754 only and missed 53 gates on the other two.
 
 METHOD
-  The episode value these gates compare lives at 0112D754. Note this is NOT
-  the global TacePatch's _dwCurrentEpisode resolves to - that pattern yields
-  0112D788, and there is a third mirror at 0112D76C. Three related globals;
-  0112D754 is the one the branches actually read.
+  .text is split into functions at int3 padding and each is disassembled
+  LINEARLY from its real start, so instruction boundaries are correct. An
+  earlier version guessed boundaries by scanning backwards from each 4-byte
+  reference, which produced ~68 nonsense decodes (`add byte ptr [ecx+...]`)
+  that are absent here.
 
-  Every 4-byte reference to it was disassembled and kept only where it is
-  literally `cmp dword ptr [0112D754], <imm>` followed by a conditional jump.
-  469 raw references reduce to 233 real gates; the rest are register compares,
-  plain loads, and mid-instruction false positives.
+  Each reference is then classified by how the episode value is used, and the
+  compared constant resolved where it is not literal - for `cmp [g], reg` by
+  walking back for the `mov reg, imm` that loaded it, and for a load by
+  walking forward to the `cmp`/`test` that consumes it.
 
-  'Already opened' was determined by simulating main.cpp's patches in source
-  order against a copy of .text, so it accounts for patches that overwrite
-  one another - which a scan of the untouched exe does not.
-
-  Function bounds are from int3 padding. Hint strings are every string the
-  enclosing function references; only ~1 function in 5 references any.
+  'Opened by TACE' comes from simulating main.cpp's patches IN SOURCE ORDER
+  against a copy of .text. That matters: patches overwrite each other, and a
+  scan of the untouched exe gets this wrong.
 
 SUMMARY
-  real episode gates ..................... 233
-  already opened by TacePatch ............ 71
-  still episode-locked ................... 162
-      cmp episode, 0  (base IV                                     )  22
-      cmp episode, 1  (TLAD                                        )  22
-      cmp episode, 2  (TBoGT                                       ) 105
-      cmp episode, 3  (out of range - almost certainly a bounds check)  13
+  references to an episode global .............. 541
+  of those, branch-shaped (a real gate) ........ 447
+      already opened by TacePatch .............. 93
+      STILL EPISODE-LOCKED .................... 354
+  non-branch references (see section 4) ........ 94
 
-WHAT THIS DOES **NOT** COVER - read before treating the list as complete
-  This is every gate of ONE shape - `cmp dword [0112D754], <imm>` with a
-  conditional jump as the very next instruction - because that is the shape
-  that is trivially openable by NOPing two bytes. It is roughly half of the
-  branch-shaped gates, and none of the non-branch ones. Full classification of
-  all 500 references to 0112D754:
+  Still-locked, by shape:
+    cmp-imm   235   `cmp [episode], N` - the shape 2 NOP bytes can open
+    cmp-reg    85   `cmp [episode], reg` - constant is in a register
+    load-cmp   34   episode loaded first, compared a few instructions later
 
-       233   cmp imm + Jcc ................... DOCUMENTED BELOW
-        86   cmp imm, Jcc not adjacent ....... real gates, NOT listed
-        51   cmp against a REGISTER + Jcc .... real gates, NOT listed
-        25   cmp against a REGISTER, no Jcc .. real gates, NOT listed
-        33   loaded into a register .......... branches or indexes later, NOT listed
-         4   jump table indexed by episode ... a switch; cannot be opened by a NOP
-        68   misaligned / data / arithmetic .. mostly decode noise
-
-  And there are two more episode globals. This list covers 0112D754 only:
-       0112D788  (_dwCurrentEpisode)  66 refs - including 13 more cmp imm + Jcc
-                                      gates of exactly the documented shape
-       0112D76C  (mirror)             15 refs
-
-  Beyond the exe entirely, episodes are also gated by things no disassembly
-  scan will find: SCM script checks via the GET_CURRENT_EPISODE native, rpf.xml
-  mounting, episode-specific .dat/.img data, and model availability.
-
-  So: a good working list of the easy wins, NOT an exhaustive map of episodic
-  behaviour. Absence from this file is not evidence a feature is unlocked.
+  Still-locked, by episode being tested:
+    cmp episode, 0                50
+    cmp episode, 1                43
+    cmp episode, 2               174
+    cmp episode, 3                28
+    unresolved                    59
 
 READ THIS BEFORE OPENING ANY OF THEM
-  A gate is content the game runs only in one episode, so opening it makes
-  that content unconditional. NOT every gate should be opened. Many pick
-  between two equally valid per-episode values - a constant, a model name, a
-  sound - and forcing one overrides the other episode's. We already hit this:
-  a patch labelled 'E2 Bullet traces' was landing on a `cmp episode,1` that
-  chooses between the PU_SEADONE and PU_SEADONEE2 pickup names, and forcing
-  it pinned a pickup name in every episode for no benefit.
+  A gate is content the game runs only in one episode; opening it makes that
+  content unconditional. NOT every gate should be opened. Many choose between
+  two equally valid per-episode values - a constant, a model name, a sound -
+  and forcing one overrides the other episode's. We already hit this: a patch
+  labelled 'E2 Bullet traces' was landing on a `cmp episode,1` choosing
+  between the PU_SEADONE and PU_SEADONEE2 pickup names, pinning a pickup name
+  in every episode for no benefit.
 
-  The `cmp episode, 3` entries are bounds checks - there is no episode 3.
-  Listed only for completeness. Ignore them.
+  `cmp episode, 3` is a bounds check - there is no episode 3. Ignore those.
+  Only cmp-imm gates are openable by NOPing the jump. cmp-reg and load-cmp
+  need the surrounding code read first; the branch may be shared.
+
+  Still outside this file (you said exe-only, noting it so nobody assumes):
+  SCM script checks via GET_CURRENT_EPISODE, rpf.xml mounting, and per-episode
+  .dat/.img data gate a great deal of content that no code scan will find.
 
 ==============================================================================
-SECTION 1 - BEST LEADS
-  Still-locked gates sitting in a function TacePatch ALREADY patches another
-  gate in. Strong candidates: the feature was clearly wanted, and a sibling
-  branch in the same function was left behind. 3 of them.
+SECTION 1 - BEST LEADS   (15)
+  Locked gates in a function where TacePatch ALREADY opens a sibling gate.
+  The feature was clearly wanted and a branch was left behind.
 ==============================================================================
+
+  function 00494DE0
+      opened : 0049503E  cmp dword ptr [0x112d754], 2 <- Parachute anims
+      strings: QSVj
+      LOCKED : 00494F54  cmp dword ptr [0x112d754], esi jne
 
   function 004A6980
-      opened : 004A6F1E  cmp episode,2  <- Sticky bomb drop icon
-      opened : 004A6F47  cmp episode,0  <- PipeBombDropIconSupport
-      strings: target / icon
-      LOCKED : 004A730A  cmp episode,2  je
+      opened : 004A6F1E  cmp dword ptr [0x112d754], 2 <- Sticky bomb drop icon
+      opened : 004A6F47  cmp dword ptr [0x112d754], 0 <- PipeBombDropIconSupport
+      strings: target
+      LOCKED : 004A6C05  cmp dword ptr [0x112d754], 2 je   (episode == 2, TBoGT)
+      LOCKED : 004A730A  cmp dword ptr [0x112d754], 2 je   (episode == 2, TBoGT)
+
+  function 0084A8E0
+      opened : 0084AA71  cmp dword ptr [0x112d788], 2 <- E2_Landing marker request model #3
+      strings: cj_cone / cj_cylinder / _ICON / CJ_ARROW_ICON / CJ_ARROW_ICON_2
+      LOCKED : 0084A99E  mov eax, dword ptr [0x112d788] -   (episode == 2, TBoGT)
 
   function 00850EF0
-      opened : 00850F03  cmp episode,2  <- EpisodicVehicleSupport (BUZZARD) weapon effects
-      LOCKED : 00850F9E  cmp episode,2  jl
+      opened : 00850F03  cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport (BUZZARD) weapon effects
+      LOCKED : 00850F9E  cmp dword ptr [0x112d754], 2 jl   (episode == 2, TBoGT)
 
-  function 0098A736
-      opened : 0098AC20  cmp episode,2  <- EpisodicVehicleSupport (APC) #7
-      LOCKED : 0098A963  cmp episode,1  jne
+  function 009D0B80
+      opened : 009D0BD0  cmp dword ptr [0x112d754], 2 <- Sticky bomb
+      LOCKED : 009D0D0B  cmp dword ptr [0x112d754], 2 jne   (episode == 2, TBoGT)
 
-==============================================================================
-SECTION 2 - ALL STILL-LOCKED GATES, BY EPISODE
-==============================================================================
+  function 00AF0450
+      opened : 00AF0714  cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport Boat models #1
+      strings: water_boat_propellor_e2 / water_boat_propellor / speed / depth / reverse
+      LOCKED : 00AF04EB  cmp dword ptr [0x112d754], 2 jne   (episode == 2, TBoGT)
+      LOCKED : 00AF0785  cmp dword ptr [0x112d754], 2 -   (episode == 2, TBoGT)
 
-------------------------------------------------------------------------------
-  cmp episode, 0  -  base IV  (22 gates)
-------------------------------------------------------------------------------
-  00475D90  jne   in 00475D20 
-  00475DB0  jne   in 00475D90 
-  004879B2  je    in 00487640 | leted
-  00489BEC  jne   in 00489B75 | PAD_START / FE_HLP3 / FE_CANCEL / FE_HLP27 / FE_ACCEPT
-  00489C0D  jne   in 00489B75 | PAD_START / FE_HLP3 / FE_CANCEL / FE_HLP27 / FE_ACCEPT
-  004982E0  jne   in 00498130 
-  004985F1  jne   in 004985F0 
-  0049909A  jne   in 00498F60 
-  004990C5  jne   in 00498F60 
-  0049B074  jne   in 0049AFE0 
-  0049B094  jne   in 0049AFE0 
-  0049B123  jne   in 0049AFE0 
-  004A0094  jne   in 004A0010 
-  007BD26B  jne   in 007BD1C0 
-  007C94FC  jne   in 007C94E8 | ME_IND_FM_04_B
-  007F045E  jle   in 007F0391 
-  007F0AC0  je    in 007F0A80 
-  008AE776  jne   in 008AE650 
-  009A654E  jne   in 009A6500 | CHEAT1 / ACHBLOCKED1B / ACHBLOCKED1C / ACHBLOCKED1E / ACHBLOCKED1F
-  00C0ECC8  jle   in 00C0EC80 
-  00C9A84B  jle   in 00C9A640 
-  00CC3EA7  jne   in 00CC38B0 | USJA / USJ_ALL / USJ_1LEFT / USJ_LEFT / USJFAILA
+  function 00AF2F50
+      opened : 00AF330C  cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport Boat models #2
+      strings: water_boat_bow_e2 / water_boat_rev_e2 / water_boat_bow / water_boat_rev / speed
+      LOCKED : 00AF2FA8  cmp dword ptr [0x112d754], 2 -   (episode == 2, TBoGT)
+      LOCKED : 00AF3358  cmp dword ptr [0x112d754], 2 jne   (episode == 2, TBoGT)
 
-------------------------------------------------------------------------------
-  cmp episode, 1  -  TLAD  (22 gates)
-------------------------------------------------------------------------------
-  00487D60  jne   in 00487B5B 
-  00493E9E  jne   in 00493E20 
-  004992BC  jle   in 00499110 
-  004993DB  jle   in 00499110 
-  004994F3  jg    in 00499110 
-  00499559  jle   in 00499110 
-  0088BEF8  jne   in 0088BE51 
-  0088BFBA  jne   in 0088BE51 
-  008AD2C9  jne   in 008ACE6D | FRONTEND_OTHER_INFO
-  008B0BA1  jne   in 008B0B80 
-  008DF191  jge   in 008DF0B0 | model
-  009503B8  jne   in 009502A0 
-  0098A963  jne   in 0098A736 
-  00A5E856  jne   in 00A5E831 
-  00A79B7F  jne   in 00A79B50 
-  00A9F533  jne   in 00A9F490 
-  00AA3110  jne   in 00AA2CB1 
-  00AB32DB  jne   in 00AB31F0 | fff?
-  00BB4F40  jne   in 00BB4ED5 | CONV_GANG_STATE / CONV_BIZ_STATE / CONV_SMOKE_STATE / CONV_CONSTRUCTION_STATE / CONV_BUM_STATE
-  00BB8A9A  jne   in 00BB8920 
-  00BCBC07  jl    in 00BCB8B0 | still / veh@bike_freeway
-  00CCB44D  jne   in 00CCB270 | CTaskComplexShockingEventWatch / SURPRISED / SHOCKED / GANG_FIGHT_CHEER / FIGHT_CHEER
+  function 00AF3388
+      opened : 00AF3686  cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport Boat models #2
+      strings: water_boat_rev_e2 / water_boat_bow / water_boat_rev / water_boat_wash_e2 / water_boat_wash
+      LOCKED : 00AF3472  cmp dword ptr [0x112d754], 2 -   (episode == 2, TBoGT)
+      LOCKED : 00AF36D2  cmp dword ptr [0x112d754], 2 jne   (episode == 2, TBoGT)
 
-------------------------------------------------------------------------------
-  cmp episode, 2  -  TBoGT  (105 gates)
-------------------------------------------------------------------------------
-  0047C7A9  jl    in 0047C4BD | MO_BENCH_TEST / SG_HDG_SAVE / SG_HDG_LOAD / UIMontageEditor / MO_ADVSURE
-  004827E8  jne   in 0048277B | fff? / GRPH_USAGE / WAR_GRPH_EXCEED / GRPH_VID_MODE / GRPH_TEX_QUAL
-  004876C3  jne   in 00487640 | leted
-  00494BF0  jne   in 00494B91 
-  004A496F  je    in 004A4661 
-  004A538D  jne   in 004A4661 
-  004A730A  je    in 004A6980 | target / icon
-  004A8BC3  jge   in 004A8B4A 
-  004A8C32  jl    in 004A8B4A 
-  006D3B12  jne   in 006D3AAC 
-  0071061A  jne   in 007105D0 
-  007BBB79  jne   in 007BBB20 
-  007C1BCA  jne   in 007C1B30 | ~PAD_UP~ / ~PAD_DOWN~ / ~PAD_LEFT~ / ~PAD_RIGHT~ / ~PAD_DPAD_ALL~
-  007F03CD  jne   in 007F0391 
-  007F19FD  jl    in 007F19D0 
-  007F1A3A  jl    in 007F19D0 
-  007F1F9A  jne   in 007F1F40 
-  007F7676  jl    in 007F74EB 
-  007F76C5  jne   in 007F74EB 
-  007F7738  jne   in 007F74EB 
-  00850F9E  jl    in 00850EF0 
-  008530FA  jne   in 00852A90 | LINEAR_RISE / GENERAL_WEAPONS_NEARFIELD_ROCKET_LOOP_BUZZARD / GENERAL_WEAPONS_NEARFIELD_ROCKET_LOOP
-  0086B0B1  jne   in 0086B000 
-  0086B468  jne   in 0086B400 
-  00872B6A  jne   in 00872973 
-  008AC685  jne   in 008AC440 | fff? / FRONTEND_OTHER_INFO
-  008DE1D1  jne   in 008DE100 
-  008DE284  jne   in 008DE220 
-  008E8D17  jl    in 008E8C40 
-  008EF659  jne   in 008EF650 
-  0090A30F  jl    in 0090A2FF 
-  009382A1  jge   in 009381D0 
-  0093B82C  jne   in 0093B810 
-  009406C6  jne   in 009405FF 
-  00944509  jne   in 00944300 | amb@payphone
-  0096933B  jl    in 00969260 
-  00988AE5  jne   in 00988A80 
-  009891ED  jne   in 00989100 | fff>
-  0098CF03  jne   in 0098CE20 
-  0099176C  jne   in 009916F0 | BUTTOCKS / ON_FIRE
-  00991B57  jne   in 009916F0 | BUTTOCKS / ON_FIRE
-  00991CE5  jne   in 009916F0 | BUTTOCKS / ON_FIRE
-  00993B38  jne   in 009937A0 
-  009983BE  jne   in 009982F0 
-  009A2CFE  jne   in 009A2CF0 
-  009C91F8  jge   in 009C91C0 
-  009C92D6  jl    in 009C91C0 
-  009CE21E  jne   in 009CE171 
-  009CE9D2  jne   in 009CE870 
-  009D0488  jne   in 009D0190 
-  009D0D0B  jne   in 009D0B80 
-  009D62E8  jne   in 009D5D50 
-  009E6A8E  jne   in 009E681E | speed
-  009E6E1A  jne   in 009E6D53 
-  009F441D  jne   in 009F4414 
-  00A5A63E  jne   in 00A5A580 
-  00A5C130  jl    in 00A5BEE0 
-  00A5E0DF  jne   in 00A5E098 
-  00A607C6  jge   in 00A602D5 
-  00A6094B  jne   in 00A608C0 
-  00A61EA0  jl    in 00A61E06 
-  00A73430  jne   in 00A732E0 
-  00A76499  jne   in 00A76440 
-  00A79B9D  jne   in 00A79B50 
-  00A79F7F  jl    in 00A79F2E 
-  00A7BFA9  jne   in 00A7BF60 
-  00A7C942  jne   in 00A7C8E0 
-  00A80DC7  jl    in 00A80C74 
-  00A9B6DE  jne   in 00A9B64A 
-  00A9B948  jne   in 00A9B64A 
-  00A9DB02  jne   in 00A9DAC1 
-  00AA65BF  jne   in 00AA6380 
-  00AD2B0B  jl    in 00AD2AD0 
-  00AE75DF  je    in 00AE73AE 
-  00AF7F65  jne   in 00AF7F50 
-  00B14228  jl    in 00B14190 
-  00B1D8CB  jne   in 00B1D870 
-  00B20EB7  jne   in 00B20E80 
-  00B969BC  jl    in 00B96940 
-  00B9F81F  jl    in 00B9F7E0 
-  00BA1000  jne   in 00BA0FD7 
-  00BBC7BC  jne   in 00BBC700 
-  00BE9A8F  jne   in 00BE99B0 | fff?
-  00BF2672  jl    in 00BF24D0 
-  00BF3A82  jl    in 00BF3A60 
-  00C104E0  jne   in 00C10490 
-  00C116E2  jne   in 00C11620 
-  00C21ECF  jne   in 00C21EA0 
-  00C2DDC2  je    in 00C2DD30 
-  00C35776  jge   in 00C3549A 
-  00C3FF33  jne   in 00C3FE00 
-  00C5831A  jl    in 00C5830A 
-  00C6CA62  jne   in 00C6C75F 
-  00C6DAB5  jne   in 00C6D9F6 | iler 9.26.952.2844
-  00C6DC8A  jne   in 00C6D9F6 | iler 9.26.952.2844
-  00C78389  jl    in 00C78300 
-  00C89A61  jne   in 00C899D0 
-  00C8C4BD  jne   in 00C8C2A0 | BULLET_IMPACT_WATER
-  00C9FF04  jne   in 00C9F880 | corona / coronas
-  00CB4771  jne   in 00CB46D0 
-  00CB5E7F  jne   in 00CB5A66 
-  00CE41F3  jne   in 00CE4090 
-  00D3B872  jne   in 00D3B7A0 
-  00D3B9B5  jne   in 00D3B900 
-  00D3C915  jne   in 00D3C760 | STATS_NET_I_PC
+  function 00AF3740
+      opened : 00AF3938  cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport Boat models #4
+      strings: water_boat_entry_e2 / water_boat_entry / speed / fff?
+      LOCKED : 00AF3792  cmp dword ptr [0x112d754], 2 jne   (episode == 2, TBoGT)
+      LOCKED : 00AF397C  cmp dword ptr [0x112d754], 2 -   (episode == 2, TBoGT)
 
-------------------------------------------------------------------------------
-  cmp episode, 3  -  out of range - almost certainly a bounds check  (13 gates)
-------------------------------------------------------------------------------
-  00497775  jne   in 004973F4 | PLRankIcons / iler 9.26.952.2844
-  006C2826  jne   in 006C27A0 | Hosting RENDEZVOUS session / Hosting TvT session / Hosting STANDARD session
-  006C2B99  jne   in 006C2B39 
-  006C730D  jne   in 006C7180 | MP_SESSION_FULL / MP_BLACKLISTED / MP_WRONGVERSION / MP_NOPASS / MP_UNKNOWN
-  00710F16  jne   in 00710F00 
-  0093138E  jne   in 00931360 
-  009314D0  jne   in 00931480 
-  009BDF30  jne   in 009BDB10 
-  00ACD080  jne   in 00ACCFE0 
-  00B39E93  jne   in 00B39E90 
-  00B43301  jne   in 00B432D0 
-  00C1E896  jne   in 00C1E820 
-  00C23AC3  jne   in 00C23A20 | FIGHT_RUN
+  function 00BCB8B0
+      opened : 00BCB925  cmp dword ptr [0x112d754], eax <- BikeFeetFix
+      strings: still / veh@bike_freeway
+      LOCKED : 00BCBC07  cmp dword ptr [0x112d754], 1 jl   (episode == 1, TLAD)
 
 ==============================================================================
-SECTION 3 - GATES TACEPATCH ALREADY OPENS  (cross-reference)
+SECTION 2 - ALL STILL-LOCKED GATES
 ==============================================================================
-  0049503E  cmp episode,2  jne   <- Parachute anims
-  004A6F1E  cmp episode,2  jne   <- Sticky bomb drop icon
-  004A6F47  cmp episode,0  je    <- PipeBombDropIconSupport
-  004A9D3A  cmp episode,2  jl    <- dsr1
-  004AB7C0  cmp episode,2  jne   <- dsr1 hud
-  006EA031  cmp episode,2  jl    <- Sticky bomb mp sync
-  006F20C4  cmp episode,2  jl    <- Parachute #1
-  0071C81A  cmp episode,2  jl    <- EpisodicVehicleSupport (APC) #5
-  007BBDAC  cmp episode,2  jne   <- parachute wind sounds / explosive weapons networking
-  007DB7D3  cmp episode,2  jne   <- Parachute #2
-  00802EC7  cmp episode,2  jne   <- GRENADE_EXPLOSION sub_B5D970
-  00803005  cmp episode,2  jne   <- SHOTGUN_EXPLOSION sub_B5D970
-  00835771  cmp episode,2  jne   <- EpisodicVehicleSupport (APC) #4
-  00850F03  cmp episode,2  jl    <- EpisodicVehicleSupport (BUZZARD) weapon effects
-  00853CDA  cmp episode,2  jne   <- Grenade launcher explode on impact
-  0085AA8B  cmp episode,2  jne   <- Check for parachute during savegame #2
-  008D9F4A  cmp episode,2  jne   <- E2 stats check #2
-  008F0071  cmp episode,2  jl    <- TBoGT heli height limit
-  008F531F  cmp episode,2  jl    <- EpisodicVehicleSupport (BUZZARD) #3
-  008FC61F  cmp episode,2  jl    <- EpisodicVehicleSupport (APC) #2
-  00965823  cmp episode,2  jne   <- EpisodicVehicleSupport (APC) respray
-  00965D30  cmp episode,2  jne   <- EpisodicVehicleSupport APC & BUZZARD
-  00989974  cmp episode,2  jne   <- EpisodicVehicleSupport (APC) #6
-  0098AC20  cmp episode,2  jne   <- EpisodicVehicleSupport (APC) #7
-  0098C7E0  cmp episode,2  jne   <- Sniper rifle checks #1
-  009900A6  cmp episode,2  jl    <- weap checks #2
-  00994441  cmp episode,2  jne   <- CExplosions__addExplosion
-  00994699  cmp episode,2  jne   <- CExplosions__addExplosion disable ped rolling
-  00997768  cmp episode,2  jl    <- weap checks #1
-  009C630C  cmp episode,2  jne   <- EpisodicVehicleSupport (BUZZARD) #1
-  009C64E8  cmp episode,2  jl    <- EpisodicVehicleSupport (BUZZARD) #2
-  009CC2D9  cmp episode,2  jl    <- P90 scroll block
-  009CD731  cmp episode,2  jl    <- CPedWeapons__giveWeapon Explosive AA12
-  009D076D  cmp episode,2  jl    <- BUZZARD rubble effects
-  009D12D9  cmp episode,2  jl    <- phone model change
-  009D21D6  cmp episode,2  jne   <- parachute wind sounds / explosive weapons networking
-  009D223E  cmp episode,2  jl    <- Buzzards minigun
-  009D2277  cmp episode,2  jne   <- Sniper rifle checks #1
-  009D22C9  cmp episode,2  jne   <- Sniper rifle checks #2
-  009D22E9  cmp episode,2  jl    <- EpisodicVehicleSupport (BUZZARD) minigun #2
-  009D2461  cmp episode,2  jl    <- EpisodicVehicleSupport (BUZZARD) BULLET_IMPACT_WATER
-  009D2545  cmp episode,1  jl    <- annihilator explosive shots
-  009D25D5  cmp episode,2  jl    <- Explosive AA12 enabler
-  009D3131  cmp episode,2  jne   <- weap checks? nearby explosive weapon checks
-  009DDE59  cmp episode,2  jne   <- Parachute #3
-  009DF721  cmp episode,2  jne   <- disco camera shake #2
-  009E4949  cmp episode,2  jne   <- EpisodicVehicleSupport Boat models #5
-  009E53D5  cmp episode,2  jne   <- EpisodicVehicleSupport Boats
-  00A530FD  cmp episode,2  jl    <- EpisodicVehicleSupport (APC) #1
-  00A537D4  cmp episode,2  jl    <- EpisodicVehicleSupport (BUZZARD & SWIFT)
-  00A61409  cmp episode,2  jne   <- sticky bomb move disable
-  00A77525  cmp episode,2  jne   <- disco camera shake #3
-  00A7A951  cmp episode,2  jne   <- EpisodicVehicleSupport (APC) #10
-  00A7B0AB  cmp episode,2  jne   <- EpisodicVehicleSupport Floater camera
-  00A84ABC  cmp episode,2  jne   <- parachute extended camera
-  00AA704D  cmp episode,2  jl    <- EpisodicVehicleSupport (APC) #11
-  00AA7AF3  cmp episode,2  jne   <- Sticky bomb faster throw in vehicle #1
-  00AA84A5  cmp episode,2  jl    <- Sticky bomb faster throw in vehicle #2
-  00AAAEA9  cmp episode,2  jne   <- E2 Bullet traces
-  00AAD4F0  cmp episode,2  jne   <- Sticky bomb something
-  00AADE32  cmp episode,2  jne   <- CTaskComplexAimAndThrowProjectile::createNextSubTask
-  00AAE43F  cmp episode,2  jne   <- CTaskSimplePlayerAimProjectile::process
-  00AAE8E2  cmp episode,2  jne   <- CTaskSimpleThrowProjectile::process
-  00AF0714  cmp episode,2  jne   <- EpisodicVehicleSupport Boat models #1
-  00AF330C  cmp episode,2  jne   <- EpisodicVehicleSupport Boat models #2
-  00AF3686  cmp episode,2  jne   <- EpisodicVehicleSupport Boat models #2
-  00AF3938  cmp episode,2  jne   <- EpisodicVehicleSupport Boat models #4
-  00B15A20  cmp episode,2  jne   <- ADD_GROUP_TO_NETWORK_RESTART_NODE_GROUP_LIST
-  00B20F3C  cmp episode,2  jne   <- EpisodicVehicleSupport (APC) #12
-  00B67F1B  cmp episode,1  jl    <- BikePhoneAnimsFix
-  00C11A6B  cmp episode,2  jne   <- explosive fists cheat
+
+##############################################################################
+#  GLOBAL 0112D754  - the global the branches overwhelmingly read   (306 locked gates)
+##############################################################################
+
+  --- episode == 0      base IV                            (42) ---
+  00475D90  cmp-imm   jne   in 00475D90 
+  00475DB0  cmp-imm   jne   in 00475DB0 
+  0047E928  load-cmp  jne   in 0047E7D1 | SE_SURE0 / SG_TIT / LG_SURE / DEFD_SURE / LEAVE_SURE
+  004879B2  cmp-imm   je    in 00487640 | leted
+  00489BEC  cmp-imm   jne   in 00489B75 | PAD_START / FE_HLP3 / FE_CANCEL / FE_HLP27 / FE_ACCEPT
+  00489C0D  cmp-imm   jne   in 00489B75 | PAD_START / FE_HLP3 / FE_CANCEL / FE_HLP27 / FE_ACCEPT
+  0048DB94  load-cmp  jne   in 0048DB90 
+  004941D6  cmp-reg   jne   in 00494140 | FE_NODLC3 / FE_NODLC2
+  004982E0  cmp-imm   jne   in 004982E0 
+  004985F1  cmp-imm   jne   in 004985F0 
+  00498BBF  load-cmp  jne   in 00498B40 
+  00498BF9  load-cmp  jne   in 00498BE1 
+  0049909A  cmp-imm   jne   in 00498F60 
+  004990C5  cmp-imm   jne   in 00498F60 
+  00499113  cmp-imm   je    in 00499110 
+  00499FD3  cmp-imm   je    in 00499FD0 
+  0049A433  cmp-imm   je    in 0049A430 
+  0049A7D0  cmp-imm   je    in 0049A7D0 
+  0049B002  cmp-imm   jne   in 0049AFE0 
+  0049B074  cmp-imm   jne   in 0049AFE0 
+  0049B094  cmp-imm   jne   in 0049AFE0 
+  0049B123  cmp-imm   jne   in 0049AFE0 
+  004A0094  cmp-imm   jne   in 004A0010 
+  00720D3B  load-cmp  je    in 00720CF4 
+  007BD26B  cmp-imm   jne   in 007BD1C0 
+  007C94FC  cmp-imm   jne   in 007C94E8 
+  007DADD1  load-cmp  jne   in 007DADC0 | pc\data / e1:/pc/data / e2:/pc/data / Videos\Clips
+  007DADEA  load-cmp  jne   in 007DADC0 | pc\data / e1:/pc/data / e2:/pc/data / Videos\Clips
+  007DAED8  load-cmp  jne   in 007DAEC0 | pc\data / e1:/pc/data / e2:/pc/data / Videos\Clips
+  007DAEF1  load-cmp  jne   in 007DAEC0 | pc\data / e1:/pc/data / e2:/pc/data / Videos\Clips
+  007F045E  cmp-imm   jle   in 007F0391 
+  007F0AC0  cmp-imm   je    in 007F0A80 
+  00857CB9  load-cmp  jle   in 00857C90 | EPISODE / ITBEG
+  0086E115  cmp-imm   je    in 0086DE70 
+  00870645  cmp-imm   je    in 008705E7 
+  00891687  load-cmp  jg    in 008915E1 
+  008AE776  cmp-imm   jne   in 008AE650 
+  009A654E  cmp-imm   jne   in 009A6500 | CHEAT1 / ACHBLOCKED1B / ACHBLOCKED1C / ACHBLOCKED1E / ACHBLOCKED1F
+  00C0ECC8  cmp-imm   jle   in 00C0EC80 
+  00C9A84B  cmp-imm   jle   in 00C9A640 
+  00CC3EA7  cmp-imm   jne   in 00CC38B0 | USJA / USJ_ALL / USJ_1LEFT / USJ_LEFT / USJFAILA
+  00D41FA5  cmp-reg   je    in 00D41E10 | platform:/textures/leaderboards / NetStatsIcons
+
+  --- episode == 1      TLAD                               (34) ---
+  004800AD  cmp-imm   jne   in 0047FE25 
+  00487D60  cmp-imm   jne   in 00487D60 
+  00487D7C  cmp-imm   jne   in 00487D70 
+  00493E9E  cmp-imm   jne   in 00493E20 
+  004992BC  cmp-imm   jle   in 00499110 
+  004993DB  cmp-imm   jle   in 00499110 
+  004994F3  cmp-imm   jg    in 00499110 
+  00499559  cmp-imm   jle   in 00499110 
+  007C5E56  cmp-imm   jne   in 007C5D00 | PLS_NONE / FO_TWO_NUM / FO_NUM
+  00862475  cmp-imm   jne   in 00861E50 
+  0088BEF8  cmp-imm   jne   in 0088BE51 
+  0088BFBA  cmp-imm   jne   in 0088BE51 
+  008AD2C9  cmp-imm   jne   in 008ACE6D | FRONTEND_OTHER_INFO
+  008B0BA1  cmp-imm   jne   in 008B0B80 
+  008DF191  cmp-imm   jge   in 008DF0B0 | model
+  009503B8  cmp-imm   jne   in 009502A0 
+  009B734A  cmp-reg   jne   in 009B72D0 
+  009D3B79  load-cmp  jne   in 009D3670 | HitReaction / none
+  009FAF5E  load-cmp  je    in 009FAD50 
+  009FCC08  load-cmp  je    in 009FC602 
+  00A79B7F  cmp-imm   jne   in 00A79B50 
+  00A842F7  cmp-imm   jne   in 00A842A7 
+  00A9F533  cmp-imm   jne   in 00A9F490 
+  00AA3110  cmp-imm   jne   in 00AA2CB1 
+  00AB2643  cmp-imm   jne   in 00AB2640 | GANG_WEAPON_WARNING
+  00AB32DB  cmp-imm   jne   in 00AB31F0 | fff?
+  00BAEE19  cmp-imm   jne   in 00BAEE10 | GREET_JOHNNY
+  00BB4F40  cmp-imm   jne   in 00BB4ED5 
+  00BB8A9A  cmp-imm   jne   in 00BB8920 
+  00BCBC07  cmp-imm   jl    in 00BCB8B0 | still / veh@bike_freeway
+  00C23F5F  cmp-reg   jne   in 00C23E05 | FIGHT_RUN
+  00CC1AC1  cmp-reg   jne   in 00CC18D0 | GANG_CHASE
+  00CCB44D  cmp-imm   jne   in 00CCB270 | CTaskComplexShockingEventWatch / SURPRISED / SHOCKED / GANG_FIGHT_CHEER / FIGHT_CHEER
+  00CCBBF3  cmp-reg   jne   in 00CCBBA0 | SURPRISED / SHOCKED / SHIT
+
+  --- episode == 2      TBoGT                              (162) ---
+  0047C7A9  cmp-imm   jl    in 0047C4BD | MO_BENCH_TEST
+  004827E8  cmp-imm   jne   in 0048277B 
+  004832A4  cmp-imm   sete  in 004831B0 | PLNEWCLOTH
+  004857A5  cmp-reg   jne   in 00485440 
+  004876C3  cmp-imm   jne   in 00487640 | leted
+  00494BF0  cmp-imm   jne   in 00494B91 
+  004A496F  cmp-imm   je    in 004A4661 
+  004A538D  cmp-imm   jne   in 004A4661 
+  004A6C05  cmp-imm   je    in 004A6980 | target
+  004A730A  cmp-imm   je    in 004A6980 | target
+  004A8BC3  cmp-imm   jge   in 004A8B4A 
+  004A8C32  cmp-imm   jl    in 004A8B4A 
+  004B291B  load-cmp  je    in 004B2650 
+  0071061A  cmp-imm   jne   in 007105D0 
+  007BBB79  cmp-imm   jne   in 007BBB20 
+  007C19C7  cmp-imm   jne   in 007C1330 
+  007C1BCA  cmp-imm   jne   in 007C1B30 
+  007C1E16  cmp-imm   jne   in 007C1D61 | ~PAD_UP~ / ~PAD_DOWN~ / ~PAD_LEFT~ / ~PAD_RIGHT~ / ~PAD_DPAD_ALL~
+  007F03CD  cmp-imm   jne   in 007F0391 
+  007F16CB  cmp-imm   jne   in 007F16B0 | e2_int
+  007F19FD  cmp-imm   jl    in 007F19D0 
+  007F1A3A  cmp-imm   jl    in 007F19D0 
+  007F1F9A  cmp-imm   jne   in 007F1F40 
+  0080FF50  cmp-reg   je    in 0080FF1E 
+  00837790  cmp-imm   sete  in 00837790 
+  00850F9E  cmp-imm   jl    in 00850EF0 
+  008530FA  cmp-imm   jne   in 00852A90 | LINEAR_RISE / GENERAL_WEAPONS_NEARFIELD_ROCKET_LOOP_BUZZARD / GENERAL_WEAPONS_NEARFIELD_ROCKET_LOOP
+  0086B0B1  cmp-imm   jne   in 0086B000 
+  0086B468  cmp-imm   jne   in 0086B400 
+  0086B4E9  cmp-imm   jne   in 0086B400 
+  0086C3CD  cmp-imm   jl    in 0086C3B0 
+  0086DEB1  cmp-reg   jne   in 0086DE70 
+  008A213D  cmp-reg   je    in 008A1FB6 
+  008A2A6E  cmp-reg   je    in 008A1FB6 
+  008A2B65  cmp-reg   je    in 008A1FB6 
+  008A2BB0  cmp-reg   je    in 008A1FB6 
+  008AC685  cmp-imm   jne   in 008AC440 | fff?
+  008AD0ED  load-cmp  jne   in 008ACE6D | FRONTEND_OTHER_INFO
+  008B1623  cmp-imm   jne   in 008B15E0 
+  008DE1D1  cmp-imm   jne   in 008DE100 
+  008DE284  cmp-imm   jne   in 008DE220 
+  008E7C5C  cmp-imm   jl    in 008E7C50 
+  008E8D17  cmp-imm   jl    in 008E8C40 
+  008EF659  cmp-imm   jne   in 008EF650 
+  008FEC0C  cmp-reg   jl    in 008FE960 
+  008FEC40  cmp-reg   jl    in 008FE960 
+  008FFC44  cmp-imm   jl    in 008FFAD3 
+  009382A1  cmp-imm   jge   in 009381D0 
+  0093B82C  cmp-imm   jne   in 0093B810 
+  009406C6  cmp-imm   jne   in 009405FF 
+  00944509  cmp-imm   jne   in 00944300 | amb@payphone
+  0096933B  cmp-imm   jl    in 00969260 
+  00988AE5  cmp-imm   jne   in 00988A80 
+  00988C2E  cmp-imm   jl    in 00988BE0 
+  009891ED  cmp-imm   jne   in 00989100 | fff>
+  0098CF03  cmp-imm   jne   in 0098CE20 
+  0099176C  cmp-imm   jne   in 009916F0 | BUTTOCKS / ON_FIRE
+  00991B57  cmp-imm   jne   in 009916F0 | BUTTOCKS / ON_FIRE
+  00991CE5  cmp-imm   jne   in 009916F0 | BUTTOCKS / ON_FIRE
+  00993B38  cmp-imm   jne   in 009937A0 
+  00996918  cmp-imm   -     in 009968A0 
+  009982F9  cmp-imm   -     in 009982F0 
+  009983BE  cmp-imm   jne   in 009982F0 
+  009988FC  cmp-imm   jl    in 00998880 
+  0099A942  cmp-imm   jne   in 0099A910 
+  0099AB2B  cmp-imm   jne   in 0099AB00 
+  0099E73C  cmp-imm   jne   in 0099E730 
+  0099EFAF  cmp-imm   jne   in 0099EFA0 
+  009A0990  cmp-imm   je    in 009A0990 
+  009A1800  cmp-imm   jne   in 009A1800 
+  009A2CFE  cmp-imm   jne   in 009A2CF0 
+  009A6AA6  cmp-imm   jne   in 009A6AA0 
+  009B2DF9  cmp-imm   setne in 009B2BE0 
+  009B2E20  cmp-imm   setne in 009B2BE0 
+  009B2E3F  cmp-imm   setne in 009B2BE0 
+  009C91F8  cmp-imm   jge   in 009C91C0 
+  009C92D6  cmp-imm   jl    in 009C91C0 
+  009CE21E  cmp-imm   jne   in 009CE171 
+  009CE9D2  cmp-imm   jne   in 009CE870 
+  009D0488  cmp-imm   jne   in 009D0190 
+  009D0D0B  cmp-imm   jne   in 009D0B80 
+  009D1F52  cmp-imm   jne   in 009D1EDF 
+  009D62E8  cmp-imm   jne   in 009D5D50 
+  009E6A8E  cmp-imm   jne   in 009E681E | speed
+  00A5A63E  cmp-imm   jne   in 00A5A580 
+  00A5C130  cmp-imm   jl    in 00A5BEE0 
+  00A5E0DF  cmp-imm   jne   in 00A5E098 
+  00A607C6  cmp-imm   jge   in 00A602D5 
+  00A6094B  cmp-imm   jne   in 00A608C0 
+  00A61140  cmp-imm   jne   in 00A61140 
+  00A61EA0  cmp-imm   jl    in 00A61E06 
+  00A638A7  cmp-reg   jne   in 00A63850 
+  00A73430  cmp-imm   jne   in 00A73430 
+  00A76499  cmp-imm   jne   in 00A76440 
+  00A79B9D  cmp-imm   jne   in 00A79B50 
+  00A79F7F  cmp-imm   jl    in 00A79F2E 
+  00A7BFA9  cmp-imm   jne   in 00A7BF60 
+  00A7C942  cmp-imm   jne   in 00A7C8E0 
+  00A80DC7  cmp-imm   jl    in 00A80C74 
+  00A85EC8  cmp-imm   jl    in 00A85E10 
+  00A996BB  cmp-imm   -     in 00A996B1 
+  00A9B6DE  cmp-imm   jne   in 00A9B64A 
+  00A9B948  cmp-imm   jne   in 00A9B64A 
+  00AA65BF  cmp-imm   jne   in 00AA6380 
+  00AAEEC5  cmp-imm   jl    in 00AAE9EC | ff&?basic_string
+  00AD2B0B  cmp-imm   jl    in 00AD2AD0 
+  00AE7EA8  cmp-reg   jge   in 00AE7B31 
+  00AF04EB  cmp-imm   jne   in 00AF0450 | water_boat_propellor_e2 / water_boat_propellor / speed / depth / reverse
+  00AF0785  cmp-imm   -     in 00AF0450 | water_boat_propellor_e2 / water_boat_propellor / speed / depth / reverse
+  00AF2FA8  cmp-imm   -     in 00AF2F50 | water_boat_bow_e2 / water_boat_rev_e2 / water_boat_bow / water_boat_rev / speed
+  00AF3358  cmp-imm   jne   in 00AF2F50 | water_boat_bow_e2 / water_boat_rev_e2 / water_boat_bow / water_boat_rev / speed
+  00AF3472  cmp-imm   -     in 00AF3388 | water_boat_rev_e2 / water_boat_bow / water_boat_rev / water_boat_wash_e2 / water_boat_wash
+  00AF36D2  cmp-imm   jne   in 00AF3388 | water_boat_rev_e2 / water_boat_bow / water_boat_rev / water_boat_wash_e2 / water_boat_wash
+  00AF3792  cmp-imm   jne   in 00AF3740 | water_boat_entry_e2 / water_boat_entry / speed / fff?
+  00AF397C  cmp-imm   -     in 00AF3740 | water_boat_entry_e2 / water_boat_entry / speed / fff?
+  00AF7F65  cmp-imm   jne   in 00AF7F50 
+  00B14228  cmp-imm   jl    in 00B14190 
+  00B1D8CB  cmp-imm   jne   in 00B1D870 
+  00B20EB7  cmp-imm   jne   in 00B20E80 
+  00B95A68  cmp-reg   jl    in 00B957F0 
+  00B969BC  cmp-imm   jl    in 00B96940 
+  00B96EAD  cmp-imm   jne   in 00B96EA0 
+  00B9F81F  cmp-imm   jl    in 00B9F7E0 
+  00BA0335  load-cmp  jne   in 00BA0261 
+  00BA1000  cmp-imm   jne   in 00BA0FD7 
+  00BBC7BC  cmp-imm   jne   in 00BBC700 
+  00BBE51D  cmp-imm   jne   in 00BBE470 
+  00BC60FA  cmp-reg   jl    in 00BC5F30 
+  00BDC47C  cmp-imm   jne   in 00BDC13D 
+  00BE9A8F  cmp-imm   jne   in 00BE99B0 | fff?
+  00BF2602  cmp-imm   jge   in 00BF24D0 
+  00BF2672  cmp-imm   jl    in 00BF24D0 
+  00BF3A82  cmp-imm   jl    in 00BF3A60 
+  00C104E0  cmp-imm   jne   in 00C104E0 
+  00C116E2  cmp-imm   jne   in 00C11620 
+  00C1A9B2  cmp-reg   jne   in 00C1A9A1 
+  00C21ECF  cmp-imm   jne   in 00C21EA0 
+  00C2B260  cmp-reg   jne   in 00C2B200 
+  00C2DDC2  cmp-imm   je    in 00C2DD30 
+  00C2DE75  cmp-reg   jne   in 00C2DD30 
+  00C35776  cmp-imm   jge   in 00C3549A 
+  00C3DDB5  cmp-reg   je    in 00C3DABC 
+  00C3FF33  cmp-imm   jne   in 00C3FE00 
+  00C6CA62  cmp-imm   jne   in 00C6C75F 
+  00C6DAB5  cmp-imm   jne   in 00C6D9F6 | iler 9.26.952.2844
+  00C6DC8A  cmp-imm   jne   in 00C6D9F6 | iler 9.26.952.2844
+  00C6F30F  cmp-imm   jne   in 00C6F2A3 
+  00C78389  cmp-imm   jl    in 00C78300 
+  00C7BB57  cmp-reg   jl    in 00C7B988 
+  00C7FD14  cmp-imm   jl    in 00C7FCD0 
+  00C89A61  cmp-imm   jne   in 00C899D0 
+  00C8C4BD  cmp-imm   jne   in 00C8C2A0 
+  00C9FF04  cmp-imm   jne   in 00C9F880 | corona / coronas
+  00CB4771  cmp-imm   jne   in 00CB46D0 
+  00CB5E7F  cmp-imm   jne   in 00CB5A66 
+  00CBE451  cmp-reg   jne   in 00CBE380 | fff?
+  00CBEB4F  cmp-imm   jne   in 00CBE910 
+  00CE41F3  cmp-imm   jne   in 00CE4090 
+  00D3B872  cmp-imm   jne   in 00D3B7A0 
+  00D3B9B5  cmp-imm   jne   in 00D3B900 
+  00D3C915  cmp-imm   jne   in 00D3C760 | STATS_NET_I_PC
+  00D472DB  cmp-imm   jne   in 00D46FF0 | MO_BENCH_ENDED
+
+  --- episode == 3      bounds check (no episode 3)        (28) ---
+  004969B7  cmp-imm   jne   in 00496930 | playersettings2
+  00497775  cmp-imm   jne   in 004973F4 | PLRankIcons / iler 9.26.952.2844
+  0049B030  cmp-imm   jne   in 0049AFE0 
+  006C2826  cmp-imm   jne   in 006C27A0 | Hosting RENDEZVOUS session / Hosting TvT session / Hosting STANDARD session
+  006C2B99  cmp-imm   jne   in 006C2B39 
+  006C5350  cmp-imm   cmove in 006C5290 | CREATING_MY_PEER
+  006C730D  cmp-imm   jne   in 006C7180 | MP_SESSION_FULL / MP_BLACKLISTED / MP_WRONGVERSION / MP_NOPASS / MP_UNKNOWN
+  006F14AF  cmp-imm   jne   in 006F1470 
+  007102AA  cmp-reg   jne   in 00710110 
+  00710719  cmp-imm   jne   in 00710660 
+  00710826  cmp-imm   jne   in 00710790 
+  00710DBE  cmp-imm   jne   in 00710DA0 
+  00710F16  cmp-imm   jne   in 00710F00 
+  00711AB9  cmp-imm   jne   in 00711AB0 
+  00711B79  cmp-imm   jne   in 00711B70 
+  0093138E  cmp-imm   jne   in 00931360 
+  009314D0  cmp-imm   jne   in 00931480 
+  00932526  cmp-imm   jne   in 00932520 
+  0094BBBD  cmp-imm   jne   in 0094BBB0 
+  009BDBC8  load-cmp  jne   in 009BDB10 
+  009BDF30  cmp-imm   jne   in 009BDB10 
+  00A504DA  cmp-imm   je    in 00A503E0 
+  00ACD080  cmp-imm   jne   in 00ACD080 
+  00B39E26  load-cmp  jne   in 00B39E00 
+  00B39E93  cmp-imm   jne   in 00B39E90 
+  00B43301  cmp-imm   jne   in 00B432D0 
+  00C1E896  cmp-imm   jne   in 00C1E820 
+  00C23AC3  cmp-imm   jne   in 00C23A20 
+
+  --- episode == ?      value not resolved                 (40) ---
+  00481F72  cmp-reg   jne   in 00481EE5 
+  0048596C  cmp-reg   jne   in 00485440 
+  00493A85  cmp-reg   jne   in 00493A00 
+  00494F54  cmp-reg   jne   in 00494DE0 | QSVj
+  00497250  cmp-reg   je    in 00497080 | platform:/textures/leaderboards / PLRankIcons / update:xbox360/textures/Leaderboards.xtd
+  0049CD5E  cmp-reg   jne   in 0049CD40 
+  0049CE30  cmp-reg   jne   in 0049CE10 
+  0049D2D2  cmp-reg   jne   in 0049D2B0 
+  004A4133  cmp-reg   je    in 004A3F30 
+  004B2AB4  cmp-reg   jne   in 004B29D0 
+  004B2C69  cmp-reg   jl    in 004B29D0 
+  0070FF63  cmp-reg   jne   in 0070FEF0 
+  00710384  cmp-reg   jne   in 00710110 
+  007103C8  cmp-reg   jne   in 00710110 
+  0085B4FA  cmp-reg   je    in 0085B4A0 
+  0086DF41  cmp-reg   jne   in 0086DE70 
+  0086E086  cmp-reg   jl    in 0086DE70 
+  0086E0B6  cmp-reg   jl    in 0086DE70 
+  0086E0E5  cmp-reg   jl    in 0086DE70 
+  0086E146  cmp-reg   jl    in 0086DE70 
+  0086E197  cmp-reg   jl    in 0086DE70 
+  0086E1C0  cmp-reg   jl    in 0086DE70 
+  008A1FDE  cmp-reg   je    in 008A1FB6 
+  008A23DA  cmp-reg   je    in 008A1FB6 
+  008A2512  cmp-reg   je    in 008A1FB6 
+  008A28EE  cmp-reg   je    in 008A1FB6 
+  008A29B8  cmp-reg   je    in 008A1FB6 
+  008ACB7C  cmp-reg   jne   in 008AC440 | fff?
+  008ACC70  cmp-reg   jne   in 008AC440 | fff?
+  008AD42F  cmp-reg   jne   in 008ACE6D | FRONTEND_OTHER_INFO
+  008D9A89  load-cmp  -     in 008D9920 
+  0098A535  cmp-reg   jne   in 0098A480 
+  009B2D2F  cmp-reg   setne in 009B2BE0 
+  009D6353  cmp-reg   jne   in 009D5D50 
+  009DD48E  cmp-reg   jne   in 009DD3D0 
+  00AB3FA5  cmp-reg   jl    in 00AB3EC0 | OVER_HANDLEBARS
+  00AEFB9A  cmp-reg   jle   in 00AEFB90 | common:/DATA/CREDITS_PC.DAT / common:/DATA/CREDITS.DAT
+  00C23FBC  cmp-reg   jne   in 00C23E05 | FIGHT_RUN
+  00CBE708  cmp-reg   jne   in 00CBE380 | fff?
+  00CC396E  cmp-reg   jne   in 00CC38B0 | USJA / USJ_ALL / USJ_1LEFT / USJ_LEFT / USJFAILA
+
+##############################################################################
+#  GLOBAL 0112D788  - what TacePatch's _dwCurrentEpisode resolves to   (47 locked gates)
+##############################################################################
+
+  --- episode == 0      base IV                            (8) ---
+  004904F7  load-cmp  je    in 0049038F 
+  00494835  load-cmp  jle   in 004947E0 
+  0049B593  cmp-imm   jne   in 0049B520 | update:/data/frontend_menus.xml
+  006C92B7  cmp-reg   jne   in 006C9220 | update:/data/leaderboards_data.xml
+  007BCB75  cmp-imm   jne   in 007BCB70 
+  007C9505  cmp-imm   jne   in 007C94E8 
+  0085C3E1  load-cmp  jle   in 0085C390 
+  00895011  cmp-imm   je    in 00894FD8 | common:/DATA/RadioLogo.DAT / [CRT]
+
+  --- episode == 1      TLAD                               (9) ---
+  0049481A  load-cmp  jl    in 004947E0 
+  0082479F  cmp-imm   jne   in 00824770 
+  0083614C  load-cmp  jne   in 00836095 | REVERB_WET_TO_SHOUTED_ECHO_VOLUME / BUILT_UP_TO_SHOUTED_ECHO_VOLUME / GLOBAL_SPEECH_ROLLOFF_%.2d / GLOBAL_SPEECH
+  0086AB57  load-cmp  jne   in 0086A980 | common:/DATA/HUDCOLOR.DAT
+  008B410F  cmp-imm   jne   in 008B40F0 
+  008DF19A  cmp-imm   jl    in 008DF0B0 | model
+  009326A0  cmp-reg   jne   in 009325E8 
+  00989CEE  cmp-imm   jne   in 00989CB0 
+  00A3526F  cmp-imm   jne   in 00A35250 | open_cred.srl
+
+  --- episode == 2      TBoGT                              (12) ---
+  00485A4D  cmp-imm   jne   in 00485440 
+  004865A2  cmp-imm   jne   in 0048634C 
+  0084A99E  load-cmp  -     in 0084A8E0 | cj_cone / cj_cylinder / _ICON / CJ_ARROW_ICON / CJ_ARROW_ICON_2
+  00886236  cmp-imm   jne   in 00886030 | common:/DATA/FONTS.DAT / common:/DATA/FONTS_R.DAT / common:/DATA/FONTS_J.DAT / [BUTTONS] / [RADAR_BLIP]
+  00887AAA  cmp-imm   jne   in 00887A70 
+  00887D29  cmp-imm   jne   in 00887CCF | font4 / RSTICK_ROTATE / streamedfont / platform:/textures/fonts_streamed_1 / font2
+  008A2145  cmp-reg   jne   in 008A1FB6 
+  008A2A98  cmp-reg   je    in 008A1FB6 
+  008A2B6D  cmp-reg   jne   in 008A1FB6 
+  008A2BB8  cmp-reg   jne   in 008A1FB6 
+  00AE7EA0  cmp-reg   jge   in 00AE7B31 
+  00B706B7  cmp-reg   jne   in 00B70660 | common:/data/default.dat / update:/update.img
+
+  --- episode == ?      value not resolved                 (18) ---
+  00493EB1  cmp-reg   je    in 00493E20 
+  00494656  cmp-reg   jne   in 004944E0 
+  00494D8D  load-cmp  jg    in 00494C90 
+  00497357  cmp-reg   jne   in 00497080 | platform:/textures/leaderboards / PLRankIcons / update:xbox360/textures/Leaderboards.xtd
+  0085628C  load-cmp  jne   in 00856270 | Rockstar Games\GTA IV\ / Rockstar Games\TLaD\ / Rockstar Games\TBoGT\
+  0085633D  load-cmp  jne   in 00856270 | Rockstar Games\GTA IV\ / Rockstar Games\TLaD\ / Rockstar Games\TBoGT\
+  00856CA7  load-cmp  jne   in 00856C6C | Rockstar Games\GTA IV\ / Rockstar Games\TLaD\ / Rockstar Games\TBoGT\ / Rockstar Games\RGSC\
+  00856D42  load-cmp  jne   in 00856C6C | Rockstar Games\GTA IV\ / Rockstar Games\TLaD\ / Rockstar Games\TBoGT\ / Rockstar Games\RGSC\
+  00856E40  load-cmp  jne   in 00856C6C | Rockstar Games\GTA IV\ / Rockstar Games\TLaD\ / Rockstar Games\TBoGT\ / Rockstar Games\RGSC\
+  008A1FE6  cmp-reg   je    in 008A1FB6 
+  008A23F6  cmp-reg   je    in 008A1FB6 
+  008A251E  cmp-reg   je    in 008A1FB6 
+  008A28F6  cmp-reg   je    in 008A1FB6 
+  008A29C0  cmp-reg   jne   in 008A1FB6 
+  008D9A8F  cmp-reg   -     in 008D9920 
+  009DD427  load-cmp  je    in 009DD3D0 
+  00B7071B  cmp-reg   jne   in 00B70660 | common:/data/default.dat / update:/update.img
+  00D42135  cmp-reg   jne   in 00D420F1 | update:pc/textures/Leaderboards.xtd
+
+##############################################################################
+#  GLOBAL 0112D76C  - third mirror   (1 locked gates)
+##############################################################################
+
+  --- episode == ?      value not resolved                 (1) ---
+  00494A23  cmp-reg   je    in 004949B0 
+
+==============================================================================
+SECTION 3 - GATES TACEPATCH ALREADY OPENS   (93, cross-reference)
+==============================================================================
+  0049503E  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- Parachute anims
+  0049F18C  D754   cmp-reg   cmp dword ptr [0x112d754], ebp <- PoliceEpisodicWeaponSupport
+  004A6F1E  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- Sticky bomb drop icon
+  004A6F47  D754   cmp-imm   cmp dword ptr [0x112d754], 0 <- PipeBombDropIconSupport
+  004A86EE  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport (APC) #3
+  004A9D3A  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- dsr1
+  004AB7C0  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- dsr1 hud
+  006EA031  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- Sticky bomb mp sync
+  006F20C4  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- Parachute #1
+  0071C81A  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport (APC) #5
+  007BBDAC  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- parachute wind sounds / explosive weapons networking
+  00801031  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport (APC) sounds
+  00801273  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport (BUZZARD) sounds
+  00802E02  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- Weapon sounds sub_B5D970
+  00802EC7  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- GRENADE_EXPLOSION sub_B5D970
+  00803005  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- SHOTGUN_EXPLOSION sub_B5D970
+  00803035  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- APC_EXPLOSION sub_B5D970
+  00835771  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport (APC) #4
+  0084AA71  D788   cmp-imm   cmp dword ptr [0x112d788], 2 <- E2_Landing marker request model #3
+  0084BB59  D754   cmp-reg   cmp dword ptr [0x112d754], edi <- E2_Landing marker Enable
+  00850F03  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport (BUZZARD) weapon effects
+  00853CDA  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- Grenade launcher explode on impact
+  00859240  D788   cmp-imm   cmp dword ptr [0x112d788], 2 <- Check if player had a parachute
+  0085AA8B  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- Check for parachute during savegame #2
+  0085AC4A  D788   cmp-imm   cmp dword ptr [0x112d788], 2 <- Check for parachute during savegame #1
+  008D9F4A  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- E2 stats check #2
+  008DA1A9  D788   cmp-imm   cmp dword ptr [0x112d788], 2 <- E2 stats check #1
+  008F0071  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- TBoGT heli height limit
+  008F531F  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport (BUZZARD) #3
+  008FC61F  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport (APC) #2
+  009465CA  D788   cmp-imm   cmp dword ptr [0x112d788], 2 <- Give parachute during load save
+  00965823  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport (APC) respray
+  00965D30  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport APC & BUZZARD
+  00989974  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport (APC) #6
+  0098C7E0  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- Sniper rifle checks #1
+  009900A6  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- weap checks #2
+  00994441  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- CExplosions__addExplosion
+  00994699  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- CExplosions__addExplosion disable ped rolling
+  00997768  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- weap checks #1
+  009C630C  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport (BUZZARD) #1
+  009C64E8  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport (BUZZARD) #2
+  009C8CD5  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- m249 for swat in annihilators and helicopters
+  009CC2D9  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- P90 scroll block
+  009CC5F2  D754   cmp-reg   cmp dword ptr [0x112d754], esi <- P90 get in car block
+  009CD731  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- CPedWeapons__giveWeapon Explosive AA12
+  009D076D  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- BUZZARD rubble effects
+  009D0BD0  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- Sticky bomb
+  009D12D9  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- phone model change
+  009D20F4  D754   cmp-reg   cmp dword ptr [0x112d754], edi <- exp aa12 & apc cannon
+  009D21D6  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- parachute wind sounds / explosive weapons networking
+  009D223E  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- Buzzards minigun
+  009D2277  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- Sniper rifle checks #1
+  009D22C9  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- Sniper rifle checks #2
+  009D22E9  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport (BUZZARD) minigun #2
+  009D2461  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport (BUZZARD) BULLET_IMPACT_WATER
+  009D2545  D754   cmp-imm   cmp dword ptr [0x112d754], 1 <- annihilator explosive shots
+  009D25D5  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- Explosive AA12 enabler
+  009D3131  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- weap checks? nearby explosive weapon checks
+  009DDE59  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- Parachute #3
+  009DF721  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- disco camera shake #2
+  009E4949  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport Boat models #5
+  009E53D5  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport Boats
+  009F21A9  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport (APC) #9
+  00A530FD  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport (APC) #1
+  00A537D4  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport (BUZZARD & SWIFT)
+  00A61409  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- sticky bomb move disable
+  00A77525  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- disco camera shake #3
+  00A7A951  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport (APC) #10
+  00A7B0AB  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport Floater camera
+  00A84ABC  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- parachute extended camera
+  00A85244  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- disco camera shake #1
+  00A9CF55  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport (BUZZARD) #4
+  00AA704D  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport (APC) #11
+  00AA7AF3  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- Sticky bomb faster throw in vehicle #1
+  00AA84A5  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- Sticky bomb faster throw in vehicle #2
+  00AA8700  D754   cmp-reg   cmp dword ptr [0x112d754], eax <- Sticky bomb faster throw in vehicle #3
+  00AAAEA9  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- E2 Bullet traces
+  00AAD4F0  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- Sticky bomb something
+  00AADE32  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- CTaskComplexAimAndThrowProjectile::createNextSubTask
+  00AAE43F  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- CTaskSimplePlayerAimProjectile::process
+  00AAE8E2  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- CTaskSimpleThrowProjectile::process
+  00AF0714  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport Boat models #1
+  00AF330C  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport Boat models #2
+  00AF3686  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport Boat models #2
+  00AF3938  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport Boat models #4
+  00B15A20  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- ADD_GROUP_TO_NETWORK_RESTART_NODE_GROUP_LIST
+  00B20F3C  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- EpisodicVehicleSupport (APC) #12
+  00B67F1B  D754   cmp-imm   cmp dword ptr [0x112d754], 1 <- BikePhoneAnimsFix
+  00BCB925  D754   cmp-reg   cmp dword ptr [0x112d754], eax <- BikeFeetFix
+  00C11A6B  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- explosive fists cheat
+  00C1A353  D754   cmp-imm   cmp dword ptr [0x112d754], 2 <- TBoGT counter anims fix #1
+  00C1AB57  D754   cmp-reg   cmp dword ptr [0x112d754], ebx <- TBoGT counter anims fix #2
+  00D49B09  D754   cmp-reg   cmp dword ptr [0x112d754], esi <- EpisodicVehicleSupport Altimeter
+
+==============================================================================
+SECTION 4 - NON-BRANCH REFERENCES   (94)
+  Not gates. The episode is stored, passed as an argument, or used as an
+  ARRAY INDEX - the last of which selects per-episode data with no branch to
+  NOP at all, and is the one shape this whole approach cannot address.
+==============================================================================
+  00478195  D754   load        mov ecx, dword ptr [0x112d754]   | Benchmark%02d%02d%02d%02d%02d%02d.txt / Benchmarks / MO_SAVE_RESULTS / MO_FILEID
+  0047828A  D754   load        mov edx, dword ptr [0x112d754]   | UIParent / BenchmarkFrame
+  0047C3B3  D754   load        mov edx, dword ptr [0x112d754]   | .cli / %s.cli / UIParent / UIMouseCursor
+  0047C4E1  D754   load        mov edx, dword ptr [0x112d754]   | MO_BENCH_TEST
+  0047CD1B  D754   load        mov edx, dword ptr [0x112d754]   
+  0047ECF2  D754   load        mov ecx, dword ptr [0x112d754]   
+  0048052A  D754   load        mov eax, dword ptr [0x112d754]   
+  0048BCBB  D754   load        mov esi, dword ptr [0x112d754]   
+  0048C7DC  D754   load        mov esi, dword ptr [0x112d754]   
+  0048D9BC  D754   load        mov ecx, dword ptr [0x112d754]   
+  0048DBC1  D754   load        mov eax, dword ptr [0x112d754]   
+  0048DC10  D754   load        mov ebx, dword ptr [0x112d754]   
+  0048DC2B  D754   load        mov ecx, dword ptr [0x112d754]   
+  0048DC53  D754   load        mov eax, dword ptr [0x112d754]   
+  0048DCB2  D754   load        mov eax, dword ptr [0x112d754]   
+  0048DCD6  D754   load        mov eax, dword ptr [0x112d754]   
+  0048DCF6  D754   load        mov eax, dword ptr [0x112d754]   
+  00493E20  D788   load        mov eax, dword ptr [0x112d788]   
+  00493E27  D754   load        mov edi, dword ptr [0x112d754]   
+  0049425B  D754   load        mov eax, dword ptr [0x112d754]   | FE_NODLC3 / FE_NODLC2
+  004946F0  D788   load        mov eax, dword ptr [0x112d788]   
+  004949E4  D76C   load        mov esi, dword ptr [0x112d76c]   
+  00494A47  D754   load        mov eax, dword ptr [0x112d754]   
+  00494A74  D76C   load        mov eax, dword ptr [0x112d76c]   
+  00494C5B  D754   load        mov eax, dword ptr [0x112d754]   
+  00494D96  D754   load        mov eax, dword ptr [0x112d754]   
+  004971C0  D754   load        mov ecx, dword ptr [0x112d754]   | platform:/textures/leaderboards / PLRankIcons / update:xbox360/textures/Leaderboards.xtd
+  004971DA  D754   load        mov edx, dword ptr [0x112d754]   | platform:/textures/leaderboards / PLRankIcons / update:xbox360/textures/Leaderboards.xtd
+  00498269  D754   load        mov ecx, dword ptr [0x112d754]   
+  004982AD  D754   load        mov eax, dword ptr [0x112d754]   
+  00498A70  D754   load        mov eax, dword ptr [0x112d754]   
+  00498E01  D754   load        mov edx, dword ptr [0x112d754]   
+  00498E50  D754   load        mov eax, dword ptr [0x112d754]   
+  0049A047  D754   load        mov eax, dword ptr [0x112d754]   
+  0049A0AA  D754   load        mov edx, dword ptr [0x112d754]   
+  0049A103  D754   load        mov eax, dword ptr [0x112d754]   
+  0049A286  D754   load        mov eax, dword ptr [0x112d754]   
+  0049A2BB  D754   load        mov eax, dword ptr [0x112d754]   
+  0049A2E6  D754   load        mov eax, dword ptr [0x112d754]   
+  0049A2F9  D754   load        mov eax, dword ptr [0x112d754]   
+  0049A330  D754   load        mov eax, dword ptr [0x112d754]   
+  0049A345  D754   load        mov eax, dword ptr [0x112d754]   
+  0049A357  D754   load        mov eax, dword ptr [0x112d754]   
+  0049A508  D754   load        mov eax, dword ptr [0x112d754]   
+  0049A55D  D754   load        mov eax, dword ptr [0x112d754]   
+  0049A697  D754   load        mov eax, dword ptr [0x112d754]   
+  0049A6CC  D754   load        mov eax, dword ptr [0x112d754]   
+  0049A6EE  D754   load        mov eax, dword ptr [0x112d754]   
+  0049A71C  D754   load        mov eax, dword ptr [0x112d754]   
+  0049A72B  D754   load        mov eax, dword ptr [0x112d754]   
+  0049A8A5  D754   load        mov eax, dword ptr [0x112d754]   
+  0049A8FD  D754   load        mov eax, dword ptr [0x112d754]   
+  0049AAA1  D754   load        mov eax, dword ptr [0x112d754]   
+  0049AAC6  D754   load        mov eax, dword ptr [0x112d754]   
+  0049AAF9  D754   load        mov eax, dword ptr [0x112d754]   
+  0049C39A  D788   load        mov ebx, dword ptr [0x112d788]   
+  006C64F1  D754   load        mov eax, dword ptr [0x112d754]   
+  007E0445  D754   load        mov edx, dword ptr [0x112d754]   
+  00858260  D754   load        mov eax, dword ptr [0x112d754]   
+  00859493  D754   load        mov eax, dword ptr [0x112d754]   | SG_HDG_SAVE
+  0089154C  D754   load        mov eax, dword ptr [0x112d754]   
+  008D5BB8  D754   load        mov edx, dword ptr [0x112d754]   
+  009A2C62  D754   load        mov esi, dword ptr [0x112d754]   | NONE
+  009D98F8  D754   load        mov eax, dword ptr [0x112d754]   | .meta / Videos\Rendered / .wmv / gta4 / tbogt
+  00A79ACD  D754   load        mov eax, dword ptr [0x112d754]   
+  00A79B04  D754   load        mov eax, dword ptr [0x112d754]   
+  00B4340A  D754   load        mov esi, dword ptr [0x112d754]   
+  00B435CA  D754   load        mov edx, dword ptr [0x112d754]   
+  00B43629  D754   load        mov ecx, dword ptr [0x112d754]   
+  00B49BEE  D754   load        mov esi, dword ptr [0x112d754]   
+  00B4FA60  D754   load        mov eax, dword ptr [0x112d754]   
+  00B7BC9D  D754   load        mov ecx, dword ptr [0x112d754]   
+  0047DE12  D754   load-index  mov ecx, dword ptr [0x112d754]   | MO_RPYQUIT / MO_UPLOAD_WARN / UIUpload / MO_TBENCHWARN
+  007D4642  D788   push-arg    push 0x112d788                   | GameLogic
+  0047CD27  D76C   store       mov dword ptr [0x112d76c], edx   
+  0047DE1F  D76C   store       mov dword ptr [0x112d76c], ecx   | MO_RPYQUIT / MO_UPLOAD_WARN / UIUpload / MO_TBENCHWARN
+  0047ECF8  D76C   store       mov dword ptr [0x112d76c], ecx   
+  00480536  D76C   store       mov dword ptr [0x112d76c], eax   
+  004809EB  D788   store       mov dword ptr [0x112d788], edi   | UIScreen
+  00490581  D788   store       mov dword ptr [0x112d788], esi   
+  00490587  D76C   store       mov dword ptr [0x112d76c], esi   
+  00493E2D  D754   store       mov dword ptr [0x112d754], eax   
+  004941DC  D788   store       mov dword ptr [0x112d788], edi   | FE_NODLC3 / FE_NODLC2
+  004942A4  D788   store       mov dword ptr [0x112d788], ebx   | FE_NODLC3 / FE_NODLC2
+  00494622  D76C   store       mov dword ptr [0x112d76c], esi   
+  00494C60  D76C   store       mov dword ptr [0x112d76c], eax   
+  007D4665  D754   store       mov dword ptr [0x112d754], eax   | GameLogic
+  007D466F  D76C   store       mov dword ptr [0x112d76c], eax   | GameLogic
+  007D4679  D788   store       mov dword ptr [0x112d788], eax   | GameLogic
+  0085C5BB  D788   store       mov dword ptr [0x112d788], eax   
+  008916A1  D76C   store       mov dword ptr [0x112d76c], eax   
+  008916F3  D76C   store       mov dword ptr [0x112d76c], 0     
+  008D42FA  D788   store       mov dword ptr [0x112d788], eax   
+  008D42FF  D76C   store       mov dword ptr [0x112d76c], eax   
 
 END
