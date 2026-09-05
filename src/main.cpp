@@ -23,6 +23,7 @@ uint32_t GetAnimGroupIdForModel(uint32_t modelHash, eAnimGroup animGroup);
 void NewAnimationOverride(const char *modelName, const char *rifleAnim, const char *rpgAnim);
 void PainVoice_Init();
 void PainVoice_OnInitMap();
+void GangWeapons_Init();
 
 //requests the animation to be loaded if it hasnt
 bool (*CAnimMgr__HasAnimLoaded)(uint32_t animGroup) = nullptr;
@@ -202,6 +203,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
     {
         InitializeAllLimitAdjusters();
         PainVoice_Init();
+        GangWeapons_Init();
 
         hook::pattern pattern {};
 
