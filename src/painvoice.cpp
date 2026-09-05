@@ -724,7 +724,7 @@ void PainVoice_Init()
         return;
     }
 
-    gTrace     = TaceIniBool("PAINVOICE", "Debug", false);
+    gTrace     = TaceTraceEnabled("painvoice", "PAINVOICE");
     gTraceLeft = gTrace ? TaceTraceBudget(200) : 0;
 
     for (int i = 0; i < kMaxExtraSlots; i++)

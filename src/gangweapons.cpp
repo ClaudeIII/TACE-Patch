@@ -277,7 +277,7 @@ void GangWeapons_Init()
     gFirstPedType = firstPedType;
 
     // --- diagnostics ---
-    gTrace     = TaceIniBool("GANGWEAPONS", "Debug", false);
+    gTrace     = TaceTraceEnabled("gangs", "GANGWEAPONS");
     gTraceLeft = gTrace ? TaceTraceBudget(120) : 0;
     {
         auto setGang = find_pattern("8B 44 24 04 8B 4C 24 08 8A 54 24 0C 8D 04 80 8D 04 85 ? ? ? ? "

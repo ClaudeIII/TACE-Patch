@@ -230,7 +230,7 @@ void CopWeapons_Init()
 
     TaceLog("[cops] ---- init ----");
 
-    gTrace     = TaceIniBool("COPWEAPONS", "Debug", false);
+    gTrace     = TaceTraceEnabled("cops", "COPWEAPONS");
     gTraceLeft = gTrace ? TaceTraceBudget(120) : 0;
 
     auto copWeapon = find_pattern("6A 00 6A 00 6A 01 68 A8 61 00 00 6A 07 8D 8E B0 02 00 00 "

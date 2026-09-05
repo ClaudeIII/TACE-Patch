@@ -1,6 +1,7 @@
 #pragma once
 
 #include <windows.h>
+#include <cctype>
 #include <cstdarg>
 #include <cstdint>
 #include <cstdio>
@@ -486,6 +487,43 @@ inline void TaceLog_Summary()
 inline int TaceTraceBudget(int normal)
 {
     return TaceLogState_().unlimited ? 0x7FFFFFFF : normal;
+}
+
+// Which subsystems emit their per-event lines, from one place:
+//
+//     [DEBUG] Trace = gangs, cops        // or "all", or blank for none
+//
+// The names are the same tags the console prints, so what you read in the
+// window is what you type here. `legacySection` is the older per-feature
+// "Debug = 1" spelling, still honoured so an existing ini keeps working.
+//
+// This decides whether the noisy lines are PRODUCED; [DEBUG] Level decides how
+// much of what is produced gets through to the sinks.
+inline bool TaceTraceEnabled(const char *name, const char *legacySection = nullptr)
+{
+    static const std::string list = []
+    {
+        std::string s = TaceIniString("DEBUG", "Trace", "");
+        for (char &c : s)
+            c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
+        return s;
+    }();
+
+    size_t at = 0;
+    while (at < list.size())
+    {
+        while (at < list.size() && (list[at] == ' ' || list[at] == ',' || list[at] == '\t'))
+            at++;
+        size_t end = list.find_first_of(", \t", at);
+        if (end == std::string::npos)
+            end = list.size();
+        const std::string token = list.substr(at, end - at);
+        if (token == "all" || token == name)
+            return true;
+        at = end;
+    }
+
+    return legacySection != nullptr && TaceIniBool(legacySection, "Debug", false);
 }
 
 inline bool TaceConsoleActive()
