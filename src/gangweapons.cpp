@@ -140,7 +140,7 @@ bool __cdecl GangWeapons_Eligible(int pedType)
         if (!known && callerCount < 8)
         {
             seenCaller[callerCount++] = rva;
-            TaceLog("[gangs] eligibility called from GTAIV.exe+0x%zX (ped type %d)",
+            TACE_TRACE("[gangs] eligibility called from GTAIV.exe+0x%zX (ped type %d)",
                     static_cast<size_t>(rva), pedType);
         }
 
@@ -152,7 +152,7 @@ bool __cdecl GangWeapons_Eligible(int pedType)
             for (const NamedId &pt : kPedTypes)
                 if (pt.id == pedType)
                     name = pt.name;
-            TaceLog("[gangs] ped type %d seen (%s) -> %s", pedType, name,
+            TACE_TRACE("[gangs] ped type %d seen (%s) -> %s", pedType, name,
                     eligible ? "eligible" : "not a gang");
         }
     }
@@ -209,7 +209,7 @@ int __fastcall GangWeapons_Pick(uint8_t *entry, void *, int flag)
             for (int i = 0; i < kGangCount; i++)
             {
                 const uint8_t *e = gTableBase + 20 * i;
-                TaceLog("[gangs] live table entry %2d: %s,%u  %s,%u  %s,%u",
+                TACE_TRACE("[gangs] live table entry %2d: %s,%u  %s,%u  %s,%u",
                         i,
                         WeaponName(*reinterpret_cast<const uint32_t *>(e + 4)),  e[16],
                         WeaponName(*reinterpret_cast<const uint32_t *>(e + 8)),  e[17],
@@ -222,7 +222,7 @@ int __fastcall GangWeapons_Pick(uint8_t *entry, void *, int flag)
     {
         gTraceLeft--;
         const ptrdiff_t slot = (entry - gTableBase) / 20;
-        TaceLog("[gangs] pick: entry %d (pedType %d) -> %s%s",
+        TACE_TRACE("[gangs] pick: entry %d (pedType %d) -> %s%s",
                 static_cast<int>(slot), static_cast<int>(slot) + gFirstPedType,
                 weapon ? WeaponName(weapon) : "nothing (roll missed, ped spawns unarmed)",
                 flag ? "  [forced-pistol flag set]" : "");
@@ -278,7 +278,7 @@ void GangWeapons_Init()
 
     // --- diagnostics ---
     gTrace     = TaceIniBool("GANGWEAPONS", "Debug", false);
-    gTraceLeft = gTrace ? 120 : 0;
+    gTraceLeft = gTrace ? TaceTraceBudget(120) : 0;
     {
         auto setGang = find_pattern("8B 44 24 04 8B 4C 24 08 8A 54 24 0C 8D 04 80 8D 04 85 ? ? ? ? "
                                     "89 48 04 8B 4C 24 10 88 50 10");

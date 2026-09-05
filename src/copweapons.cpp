@@ -81,10 +81,13 @@ namespace
     Loadout gSniper;
     Loadout gHeli;
 
+    bool gTrace     = false;
+    int  gTraceLeft = 0;
+
     // thiscall(this, weapon, ammo, a4, a5, a6) - five stack args, callee cleaned.
     int (__fastcall *OrigGiveWeapon)(void *self, void *, int weapon, int ammo, int a4, int a5, int a6) = nullptr;
 
-    int ApplyLoadout(const Loadout &l, void *self, int weapon, int ammo, int a4, int a5, int a6)
+    int ApplyLoadout(const Loadout &l, const char *who, void *self, int weapon, int ammo, int a4, int a5, int a6)
     {
         int chosen = weapon;
         if (!l.pick.empty())
@@ -94,6 +97,17 @@ namespace
 
         for (int e : l.extra)
             OrigGiveWeapon(self, nullptr, e, ammo, a4, a5, a6);
+
+        // The only runtime evidence this hook is live at all. Everything else
+        // about the cop features is decided once, at init.
+        if (gTrace && gTraceLeft > 0)
+        {
+            gTraceLeft--;
+            TACE_TRACE("[cops] %s armed: %s (game asked for %s)%s%s",
+                       who, WeaponName(chosen), WeaponName(weapon),
+                       l.extra.empty() ? "" : " + ",
+                       l.extra.empty() ? "" : WeaponName(l.extra.front()));
+        }
 
         return result;
     }
@@ -198,12 +212,12 @@ namespace
 
 int __fastcall CopWeapons_GiveSniper(void *self, void *, int weapon, int ammo, int a4, int a5, int a6)
 {
-    return ApplyLoadout(gSniper, self, weapon, ammo, a4, a5, a6);
+    return ApplyLoadout(gSniper, "rooftop sniper", self, weapon, ammo, a4, a5, a6);
 }
 
 int __fastcall CopWeapons_GiveHeli(void *self, void *, int weapon, int ammo, int a4, int a5, int a6)
 {
-    return ApplyLoadout(gHeli, self, weapon, ammo, a4, a5, a6);
+    return ApplyLoadout(gHeli, "helicopter crewman", self, weapon, ammo, a4, a5, a6);
 }
 
 void CopWeapons_Init()
@@ -215,6 +229,9 @@ void CopWeapons_Init()
     }
 
     TaceLog("[cops] ---- init ----");
+
+    gTrace     = TaceIniBool("COPWEAPONS", "Debug", false);
+    gTraceLeft = gTrace ? TaceTraceBudget(120) : 0;
 
     auto copWeapon = find_pattern("6A 00 6A 00 6A 01 68 A8 61 00 00 6A 07 8D 8E B0 02 00 00 "
                                   "E8 ? ? ? ? D9 EE");

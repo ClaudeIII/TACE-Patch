@@ -7,6 +7,7 @@
 
 #include "rage/Hash.h"
 #include "Types.h"
+#include "Log.h"
 
 std::unordered_map<uint32_t, AnimationOverride> gAnimationOverrides;
 namespace ModelIndices
@@ -202,10 +203,13 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
 {
     if(fdwReason == DLL_PROCESS_ATTACH)
     {
+        TaceLog_Init();
+
         InitializeAllLimitAdjusters();
         PainVoice_Init();
         GangWeapons_Init();
         CopWeapons_Init();
+        TaceLog_Summary();
 
         hook::pattern pattern {};
 
