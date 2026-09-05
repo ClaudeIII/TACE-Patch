@@ -35,6 +35,33 @@ SUMMARY
       cmp episode, 2  (TBoGT                                       ) 105
       cmp episode, 3  (out of range - almost certainly a bounds check)  13
 
+WHAT THIS DOES **NOT** COVER - read before treating the list as complete
+  This is every gate of ONE shape - `cmp dword [0112D754], <imm>` with a
+  conditional jump as the very next instruction - because that is the shape
+  that is trivially openable by NOPing two bytes. It is roughly half of the
+  branch-shaped gates, and none of the non-branch ones. Full classification of
+  all 500 references to 0112D754:
+
+       233   cmp imm + Jcc ................... DOCUMENTED BELOW
+        86   cmp imm, Jcc not adjacent ....... real gates, NOT listed
+        51   cmp against a REGISTER + Jcc .... real gates, NOT listed
+        25   cmp against a REGISTER, no Jcc .. real gates, NOT listed
+        33   loaded into a register .......... branches or indexes later, NOT listed
+         4   jump table indexed by episode ... a switch; cannot be opened by a NOP
+        68   misaligned / data / arithmetic .. mostly decode noise
+
+  And there are two more episode globals. This list covers 0112D754 only:
+       0112D788  (_dwCurrentEpisode)  66 refs - including 13 more cmp imm + Jcc
+                                      gates of exactly the documented shape
+       0112D76C  (mirror)             15 refs
+
+  Beyond the exe entirely, episodes are also gated by things no disassembly
+  scan will find: SCM script checks via the GET_CURRENT_EPISODE native, rpf.xml
+  mounting, episode-specific .dat/.img data, and model availability.
+
+  So: a good working list of the easy wins, NOT an exhaustive map of episodic
+  behaviour. Absence from this file is not evidence a feature is unlocked.
+
 READ THIS BEFORE OPENING ANY OF THEM
   A gate is content the game runs only in one episode, so opening it makes
   that content unconditional. NOT every gate should be opened. Many pick
