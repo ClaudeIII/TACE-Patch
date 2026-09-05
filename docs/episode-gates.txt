@@ -1,0 +1,328 @@
+GTA IV 1.0.8.0 - EPISODE GATE INVENTORY
+==============================================================================
+
+Generated 2026-09-05 from GTAIV.exe 1.0.8.0 (ImageBase 00400000).
+
+*** FINDINGS ONLY. Nothing here is implemented, patched or recommended. ***
+
+This is a list of every place the game still branches on which episode is
+loaded, and which of those TacePatch already opens.
+
+METHOD
+  The episode value these gates compare lives at 0112D754. Note this is NOT
+  the global TacePatch's _dwCurrentEpisode resolves to - that pattern yields
+  0112D788, and there is a third mirror at 0112D76C. Three related globals;
+  0112D754 is the one the branches actually read.
+
+  Every 4-byte reference to it was disassembled and kept only where it is
+  literally `cmp dword ptr [0112D754], <imm>` followed by a conditional jump.
+  469 raw references reduce to 233 real gates; the rest are register compares,
+  plain loads, and mid-instruction false positives.
+
+  'Already opened' was determined by simulating main.cpp's patches in source
+  order against a copy of .text, so it accounts for patches that overwrite
+  one another - which a scan of the untouched exe does not.
+
+  Function bounds are from int3 padding. Hint strings are every string the
+  enclosing function references; only ~1 function in 5 references any.
+
+SUMMARY
+  real episode gates ..................... 233
+  already opened by TacePatch ............ 71
+  still episode-locked ................... 162
+      cmp episode, 0  (base IV                                     )  22
+      cmp episode, 1  (TLAD                                        )  22
+      cmp episode, 2  (TBoGT                                       ) 105
+      cmp episode, 3  (out of range - almost certainly a bounds check)  13
+
+READ THIS BEFORE OPENING ANY OF THEM
+  A gate is content the game runs only in one episode, so opening it makes
+  that content unconditional. NOT every gate should be opened. Many pick
+  between two equally valid per-episode values - a constant, a model name, a
+  sound - and forcing one overrides the other episode's. We already hit this:
+  a patch labelled 'E2 Bullet traces' was landing on a `cmp episode,1` that
+  chooses between the PU_SEADONE and PU_SEADONEE2 pickup names, and forcing
+  it pinned a pickup name in every episode for no benefit.
+
+  The `cmp episode, 3` entries are bounds checks - there is no episode 3.
+  Listed only for completeness. Ignore them.
+
+==============================================================================
+SECTION 1 - BEST LEADS
+  Still-locked gates sitting in a function TacePatch ALREADY patches another
+  gate in. Strong candidates: the feature was clearly wanted, and a sibling
+  branch in the same function was left behind. 3 of them.
+==============================================================================
+
+  function 004A6980
+      opened : 004A6F1E  cmp episode,2  <- Sticky bomb drop icon
+      opened : 004A6F47  cmp episode,0  <- PipeBombDropIconSupport
+      strings: target / icon
+      LOCKED : 004A730A  cmp episode,2  je
+
+  function 00850EF0
+      opened : 00850F03  cmp episode,2  <- EpisodicVehicleSupport (BUZZARD) weapon effects
+      LOCKED : 00850F9E  cmp episode,2  jl
+
+  function 0098A736
+      opened : 0098AC20  cmp episode,2  <- EpisodicVehicleSupport (APC) #7
+      LOCKED : 0098A963  cmp episode,1  jne
+
+==============================================================================
+SECTION 2 - ALL STILL-LOCKED GATES, BY EPISODE
+==============================================================================
+
+------------------------------------------------------------------------------
+  cmp episode, 0  -  base IV  (22 gates)
+------------------------------------------------------------------------------
+  00475D90  jne   in 00475D20 
+  00475DB0  jne   in 00475D90 
+  004879B2  je    in 00487640 | leted
+  00489BEC  jne   in 00489B75 | PAD_START / FE_HLP3 / FE_CANCEL / FE_HLP27 / FE_ACCEPT
+  00489C0D  jne   in 00489B75 | PAD_START / FE_HLP3 / FE_CANCEL / FE_HLP27 / FE_ACCEPT
+  004982E0  jne   in 00498130 
+  004985F1  jne   in 004985F0 
+  0049909A  jne   in 00498F60 
+  004990C5  jne   in 00498F60 
+  0049B074  jne   in 0049AFE0 
+  0049B094  jne   in 0049AFE0 
+  0049B123  jne   in 0049AFE0 
+  004A0094  jne   in 004A0010 
+  007BD26B  jne   in 007BD1C0 
+  007C94FC  jne   in 007C94E8 | ME_IND_FM_04_B
+  007F045E  jle   in 007F0391 
+  007F0AC0  je    in 007F0A80 
+  008AE776  jne   in 008AE650 
+  009A654E  jne   in 009A6500 | CHEAT1 / ACHBLOCKED1B / ACHBLOCKED1C / ACHBLOCKED1E / ACHBLOCKED1F
+  00C0ECC8  jle   in 00C0EC80 
+  00C9A84B  jle   in 00C9A640 
+  00CC3EA7  jne   in 00CC38B0 | USJA / USJ_ALL / USJ_1LEFT / USJ_LEFT / USJFAILA
+
+------------------------------------------------------------------------------
+  cmp episode, 1  -  TLAD  (22 gates)
+------------------------------------------------------------------------------
+  00487D60  jne   in 00487B5B 
+  00493E9E  jne   in 00493E20 
+  004992BC  jle   in 00499110 
+  004993DB  jle   in 00499110 
+  004994F3  jg    in 00499110 
+  00499559  jle   in 00499110 
+  0088BEF8  jne   in 0088BE51 
+  0088BFBA  jne   in 0088BE51 
+  008AD2C9  jne   in 008ACE6D | FRONTEND_OTHER_INFO
+  008B0BA1  jne   in 008B0B80 
+  008DF191  jge   in 008DF0B0 | model
+  009503B8  jne   in 009502A0 
+  0098A963  jne   in 0098A736 
+  00A5E856  jne   in 00A5E831 
+  00A79B7F  jne   in 00A79B50 
+  00A9F533  jne   in 00A9F490 
+  00AA3110  jne   in 00AA2CB1 
+  00AB32DB  jne   in 00AB31F0 | fff?
+  00BB4F40  jne   in 00BB4ED5 | CONV_GANG_STATE / CONV_BIZ_STATE / CONV_SMOKE_STATE / CONV_CONSTRUCTION_STATE / CONV_BUM_STATE
+  00BB8A9A  jne   in 00BB8920 
+  00BCBC07  jl    in 00BCB8B0 | still / veh@bike_freeway
+  00CCB44D  jne   in 00CCB270 | CTaskComplexShockingEventWatch / SURPRISED / SHOCKED / GANG_FIGHT_CHEER / FIGHT_CHEER
+
+------------------------------------------------------------------------------
+  cmp episode, 2  -  TBoGT  (105 gates)
+------------------------------------------------------------------------------
+  0047C7A9  jl    in 0047C4BD | MO_BENCH_TEST / SG_HDG_SAVE / SG_HDG_LOAD / UIMontageEditor / MO_ADVSURE
+  004827E8  jne   in 0048277B | fff? / GRPH_USAGE / WAR_GRPH_EXCEED / GRPH_VID_MODE / GRPH_TEX_QUAL
+  004876C3  jne   in 00487640 | leted
+  00494BF0  jne   in 00494B91 
+  004A496F  je    in 004A4661 
+  004A538D  jne   in 004A4661 
+  004A730A  je    in 004A6980 | target / icon
+  004A8BC3  jge   in 004A8B4A 
+  004A8C32  jl    in 004A8B4A 
+  006D3B12  jne   in 006D3AAC 
+  0071061A  jne   in 007105D0 
+  007BBB79  jne   in 007BBB20 
+  007C1BCA  jne   in 007C1B30 | ~PAD_UP~ / ~PAD_DOWN~ / ~PAD_LEFT~ / ~PAD_RIGHT~ / ~PAD_DPAD_ALL~
+  007F03CD  jne   in 007F0391 
+  007F19FD  jl    in 007F19D0 
+  007F1A3A  jl    in 007F19D0 
+  007F1F9A  jne   in 007F1F40 
+  007F7676  jl    in 007F74EB 
+  007F76C5  jne   in 007F74EB 
+  007F7738  jne   in 007F74EB 
+  00850F9E  jl    in 00850EF0 
+  008530FA  jne   in 00852A90 | LINEAR_RISE / GENERAL_WEAPONS_NEARFIELD_ROCKET_LOOP_BUZZARD / GENERAL_WEAPONS_NEARFIELD_ROCKET_LOOP
+  0086B0B1  jne   in 0086B000 
+  0086B468  jne   in 0086B400 
+  00872B6A  jne   in 00872973 
+  008AC685  jne   in 008AC440 | fff? / FRONTEND_OTHER_INFO
+  008DE1D1  jne   in 008DE100 
+  008DE284  jne   in 008DE220 
+  008E8D17  jl    in 008E8C40 
+  008EF659  jne   in 008EF650 
+  0090A30F  jl    in 0090A2FF 
+  009382A1  jge   in 009381D0 
+  0093B82C  jne   in 0093B810 
+  009406C6  jne   in 009405FF 
+  00944509  jne   in 00944300 | amb@payphone
+  0096933B  jl    in 00969260 
+  00988AE5  jne   in 00988A80 
+  009891ED  jne   in 00989100 | fff>
+  0098CF03  jne   in 0098CE20 
+  0099176C  jne   in 009916F0 | BUTTOCKS / ON_FIRE
+  00991B57  jne   in 009916F0 | BUTTOCKS / ON_FIRE
+  00991CE5  jne   in 009916F0 | BUTTOCKS / ON_FIRE
+  00993B38  jne   in 009937A0 
+  009983BE  jne   in 009982F0 
+  009A2CFE  jne   in 009A2CF0 
+  009C91F8  jge   in 009C91C0 
+  009C92D6  jl    in 009C91C0 
+  009CE21E  jne   in 009CE171 
+  009CE9D2  jne   in 009CE870 
+  009D0488  jne   in 009D0190 
+  009D0D0B  jne   in 009D0B80 
+  009D62E8  jne   in 009D5D50 
+  009E6A8E  jne   in 009E681E | speed
+  009E6E1A  jne   in 009E6D53 
+  009F441D  jne   in 009F4414 
+  00A5A63E  jne   in 00A5A580 
+  00A5C130  jl    in 00A5BEE0 
+  00A5E0DF  jne   in 00A5E098 
+  00A607C6  jge   in 00A602D5 
+  00A6094B  jne   in 00A608C0 
+  00A61EA0  jl    in 00A61E06 
+  00A73430  jne   in 00A732E0 
+  00A76499  jne   in 00A76440 
+  00A79B9D  jne   in 00A79B50 
+  00A79F7F  jl    in 00A79F2E 
+  00A7BFA9  jne   in 00A7BF60 
+  00A7C942  jne   in 00A7C8E0 
+  00A80DC7  jl    in 00A80C74 
+  00A9B6DE  jne   in 00A9B64A 
+  00A9B948  jne   in 00A9B64A 
+  00A9DB02  jne   in 00A9DAC1 
+  00AA65BF  jne   in 00AA6380 
+  00AD2B0B  jl    in 00AD2AD0 
+  00AE75DF  je    in 00AE73AE 
+  00AF7F65  jne   in 00AF7F50 
+  00B14228  jl    in 00B14190 
+  00B1D8CB  jne   in 00B1D870 
+  00B20EB7  jne   in 00B20E80 
+  00B969BC  jl    in 00B96940 
+  00B9F81F  jl    in 00B9F7E0 
+  00BA1000  jne   in 00BA0FD7 
+  00BBC7BC  jne   in 00BBC700 
+  00BE9A8F  jne   in 00BE99B0 | fff?
+  00BF2672  jl    in 00BF24D0 
+  00BF3A82  jl    in 00BF3A60 
+  00C104E0  jne   in 00C10490 
+  00C116E2  jne   in 00C11620 
+  00C21ECF  jne   in 00C21EA0 
+  00C2DDC2  je    in 00C2DD30 
+  00C35776  jge   in 00C3549A 
+  00C3FF33  jne   in 00C3FE00 
+  00C5831A  jl    in 00C5830A 
+  00C6CA62  jne   in 00C6C75F 
+  00C6DAB5  jne   in 00C6D9F6 | iler 9.26.952.2844
+  00C6DC8A  jne   in 00C6D9F6 | iler 9.26.952.2844
+  00C78389  jl    in 00C78300 
+  00C89A61  jne   in 00C899D0 
+  00C8C4BD  jne   in 00C8C2A0 | BULLET_IMPACT_WATER
+  00C9FF04  jne   in 00C9F880 | corona / coronas
+  00CB4771  jne   in 00CB46D0 
+  00CB5E7F  jne   in 00CB5A66 
+  00CE41F3  jne   in 00CE4090 
+  00D3B872  jne   in 00D3B7A0 
+  00D3B9B5  jne   in 00D3B900 
+  00D3C915  jne   in 00D3C760 | STATS_NET_I_PC
+
+------------------------------------------------------------------------------
+  cmp episode, 3  -  out of range - almost certainly a bounds check  (13 gates)
+------------------------------------------------------------------------------
+  00497775  jne   in 004973F4 | PLRankIcons / iler 9.26.952.2844
+  006C2826  jne   in 006C27A0 | Hosting RENDEZVOUS session / Hosting TvT session / Hosting STANDARD session
+  006C2B99  jne   in 006C2B39 
+  006C730D  jne   in 006C7180 | MP_SESSION_FULL / MP_BLACKLISTED / MP_WRONGVERSION / MP_NOPASS / MP_UNKNOWN
+  00710F16  jne   in 00710F00 
+  0093138E  jne   in 00931360 
+  009314D0  jne   in 00931480 
+  009BDF30  jne   in 009BDB10 
+  00ACD080  jne   in 00ACCFE0 
+  00B39E93  jne   in 00B39E90 
+  00B43301  jne   in 00B432D0 
+  00C1E896  jne   in 00C1E820 
+  00C23AC3  jne   in 00C23A20 | FIGHT_RUN
+
+==============================================================================
+SECTION 3 - GATES TACEPATCH ALREADY OPENS  (cross-reference)
+==============================================================================
+  0049503E  cmp episode,2  jne   <- Parachute anims
+  004A6F1E  cmp episode,2  jne   <- Sticky bomb drop icon
+  004A6F47  cmp episode,0  je    <- PipeBombDropIconSupport
+  004A9D3A  cmp episode,2  jl    <- dsr1
+  004AB7C0  cmp episode,2  jne   <- dsr1 hud
+  006EA031  cmp episode,2  jl    <- Sticky bomb mp sync
+  006F20C4  cmp episode,2  jl    <- Parachute #1
+  0071C81A  cmp episode,2  jl    <- EpisodicVehicleSupport (APC) #5
+  007BBDAC  cmp episode,2  jne   <- parachute wind sounds / explosive weapons networking
+  007DB7D3  cmp episode,2  jne   <- Parachute #2
+  00802EC7  cmp episode,2  jne   <- GRENADE_EXPLOSION sub_B5D970
+  00803005  cmp episode,2  jne   <- SHOTGUN_EXPLOSION sub_B5D970
+  00835771  cmp episode,2  jne   <- EpisodicVehicleSupport (APC) #4
+  00850F03  cmp episode,2  jl    <- EpisodicVehicleSupport (BUZZARD) weapon effects
+  00853CDA  cmp episode,2  jne   <- Grenade launcher explode on impact
+  0085AA8B  cmp episode,2  jne   <- Check for parachute during savegame #2
+  008D9F4A  cmp episode,2  jne   <- E2 stats check #2
+  008F0071  cmp episode,2  jl    <- TBoGT heli height limit
+  008F531F  cmp episode,2  jl    <- EpisodicVehicleSupport (BUZZARD) #3
+  008FC61F  cmp episode,2  jl    <- EpisodicVehicleSupport (APC) #2
+  00965823  cmp episode,2  jne   <- EpisodicVehicleSupport (APC) respray
+  00965D30  cmp episode,2  jne   <- EpisodicVehicleSupport APC & BUZZARD
+  00989974  cmp episode,2  jne   <- EpisodicVehicleSupport (APC) #6
+  0098AC20  cmp episode,2  jne   <- EpisodicVehicleSupport (APC) #7
+  0098C7E0  cmp episode,2  jne   <- Sniper rifle checks #1
+  009900A6  cmp episode,2  jl    <- weap checks #2
+  00994441  cmp episode,2  jne   <- CExplosions__addExplosion
+  00994699  cmp episode,2  jne   <- CExplosions__addExplosion disable ped rolling
+  00997768  cmp episode,2  jl    <- weap checks #1
+  009C630C  cmp episode,2  jne   <- EpisodicVehicleSupport (BUZZARD) #1
+  009C64E8  cmp episode,2  jl    <- EpisodicVehicleSupport (BUZZARD) #2
+  009CC2D9  cmp episode,2  jl    <- P90 scroll block
+  009CD731  cmp episode,2  jl    <- CPedWeapons__giveWeapon Explosive AA12
+  009D076D  cmp episode,2  jl    <- BUZZARD rubble effects
+  009D12D9  cmp episode,2  jl    <- phone model change
+  009D21D6  cmp episode,2  jne   <- parachute wind sounds / explosive weapons networking
+  009D223E  cmp episode,2  jl    <- Buzzards minigun
+  009D2277  cmp episode,2  jne   <- Sniper rifle checks #1
+  009D22C9  cmp episode,2  jne   <- Sniper rifle checks #2
+  009D22E9  cmp episode,2  jl    <- EpisodicVehicleSupport (BUZZARD) minigun #2
+  009D2461  cmp episode,2  jl    <- EpisodicVehicleSupport (BUZZARD) BULLET_IMPACT_WATER
+  009D2545  cmp episode,1  jl    <- annihilator explosive shots
+  009D25D5  cmp episode,2  jl    <- Explosive AA12 enabler
+  009D3131  cmp episode,2  jne   <- weap checks? nearby explosive weapon checks
+  009DDE59  cmp episode,2  jne   <- Parachute #3
+  009DF721  cmp episode,2  jne   <- disco camera shake #2
+  009E4949  cmp episode,2  jne   <- EpisodicVehicleSupport Boat models #5
+  009E53D5  cmp episode,2  jne   <- EpisodicVehicleSupport Boats
+  00A530FD  cmp episode,2  jl    <- EpisodicVehicleSupport (APC) #1
+  00A537D4  cmp episode,2  jl    <- EpisodicVehicleSupport (BUZZARD & SWIFT)
+  00A61409  cmp episode,2  jne   <- sticky bomb move disable
+  00A77525  cmp episode,2  jne   <- disco camera shake #3
+  00A7A951  cmp episode,2  jne   <- EpisodicVehicleSupport (APC) #10
+  00A7B0AB  cmp episode,2  jne   <- EpisodicVehicleSupport Floater camera
+  00A84ABC  cmp episode,2  jne   <- parachute extended camera
+  00AA704D  cmp episode,2  jl    <- EpisodicVehicleSupport (APC) #11
+  00AA7AF3  cmp episode,2  jne   <- Sticky bomb faster throw in vehicle #1
+  00AA84A5  cmp episode,2  jl    <- Sticky bomb faster throw in vehicle #2
+  00AAAEA9  cmp episode,2  jne   <- E2 Bullet traces
+  00AAD4F0  cmp episode,2  jne   <- Sticky bomb something
+  00AADE32  cmp episode,2  jne   <- CTaskComplexAimAndThrowProjectile::createNextSubTask
+  00AAE43F  cmp episode,2  jne   <- CTaskSimplePlayerAimProjectile::process
+  00AAE8E2  cmp episode,2  jne   <- CTaskSimpleThrowProjectile::process
+  00AF0714  cmp episode,2  jne   <- EpisodicVehicleSupport Boat models #1
+  00AF330C  cmp episode,2  jne   <- EpisodicVehicleSupport Boat models #2
+  00AF3686  cmp episode,2  jne   <- EpisodicVehicleSupport Boat models #2
+  00AF3938  cmp episode,2  jne   <- EpisodicVehicleSupport Boat models #4
+  00B15A20  cmp episode,2  jne   <- ADD_GROUP_TO_NETWORK_RESTART_NODE_GROUP_LIST
+  00B20F3C  cmp episode,2  jne   <- EpisodicVehicleSupport (APC) #12
+  00B67F1B  cmp episode,1  jl    <- BikePhoneAnimsFix
+  00C11A6B  cmp episode,2  jne   <- explosive fists cheat
+
+END
