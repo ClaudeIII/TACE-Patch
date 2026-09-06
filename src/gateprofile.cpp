@@ -118,8 +118,13 @@ namespace
         }
     }
 
+    void ArmGates();
+
     // Watches the mark key. A thread rather than a game hook so it works even
     // while the game is busy, and costs nothing when idle.
+    //
+    // The FIRST press is what arms the profiler. Nothing is patched before
+    // that, on purpose - see ArmGates for why.
     DWORD WINAPI MarkThread(LPVOID)
     {
         bool down = false;
@@ -128,12 +133,19 @@ namespace
             const bool now = (GetAsyncKeyState(gMarkKey) & 0x8000) != 0;
             if (now && !down)
             {
-                uint32_t fired = 0;
-                for (size_t i = 0; i < gCount; i++)
-                    if (gGates[i].hits) fired++;
-                TACE_INFO("[gate] ---- mark ---- %u of %zu gates have fired so far;"
-                          " clearing, do the action now", fired, gCount);
-                ResetSeen();
+                if (!gActive)
+                {
+                    ArmGates();
+                }
+                else
+                {
+                    uint32_t fired = 0;
+                    for (size_t i = 0; i < gCount; i++)
+                        if (gGates[i].hits) fired++;
+                    TACE_INFO("[gate] ---- mark ---- %u of %zu gates have fired so far;"
+                              " clearing, do the action now", fired, gCount);
+                    ResetSeen();
+                }
             }
             down = now;
             Sleep(40);
@@ -208,6 +220,22 @@ void GateProfile_Init()
         return;
     }
 
+    // NOT armed here. Rewriting 462 instructions destroys byte signatures that
+    // OTHER mods are still scanning for - ZolikaPatch initialises on its own
+    // thread a couple of seconds after this and crashed outright when it found
+    // our calls where it expected game code. Nothing is patched until the mark
+    // key is pressed, by which point every other ASI has finished its scan.
+    TACE_INFO("[gate] profiler ready but NOT armed - press VK 0x%02X once to arm it,"
+              " then again to mark before each action", gMarkKey);
+    CreateThread(nullptr, 0, MarkThread, nullptr, 0, nullptr);
+}
+
+// Patches the gates. Deferred until the mark key is pressed - see above.
+namespace
+{
+void ArmGates()
+{
+    const uintptr_t base = (uintptr_t)GetModuleHandleA(nullptr);
     gGates = (Gate *)calloc(kGateCount, sizeof(Gate));
     gStubs = (uint8_t *)VirtualAlloc(nullptr, kGateCount * 48,
                                      MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
@@ -313,6 +341,6 @@ void GateProfile_Init()
               (void *)gEpisode, gEpisode ? *gEpisode : -1, gGlobalCount);
     TACE_INFO("[gate] press VK 0x%02X to mark: it clears what has been reported, so"
               " perform an action and only the gates it touched appear", gMarkKey);
-
-    CreateThread(nullptr, 0, MarkThread, nullptr, 0, nullptr);
+    gActive = true;
+}
 }
