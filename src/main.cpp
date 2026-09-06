@@ -28,6 +28,7 @@ void PainVoice_Init();
 void PainVoice_OnInitMap();
 void GangWeapons_Init();
 void CopWeapons_Init();
+void GateProfile_Init();
 
 //requests the animation to be loaded if it hasnt
 bool (*CAnimMgr__HasAnimLoaded)(uint32_t animGroup) = nullptr;
@@ -745,6 +746,14 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
             sprintf(ep, "%d", *_dwCurrentEpisode);
             CrashLog_SetNote("episode at startup", ep);
         }
+
+        // LAST, deliberately. The profiler rewrites the compare instruction
+        // at every gate, which would destroy the byte signatures every patch
+        // above searches for - so it must not run until they have all been
+        // applied. It also needs to see the finished state to tell a gate
+        // TacePatch has forced open from one that is still episode-locked.
+        GateProfile_Init();
+
         TaceLog_Summary();
     }
 
