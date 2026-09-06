@@ -9,6 +9,7 @@
 #include "rage/Hash.h"
 #include "Types.h"
 #include "Log.h"
+#include "CrashLog.h"
 
 std::unordered_map<uint32_t, AnimationOverride> gAnimationOverrides;
 namespace ModelIndices
@@ -232,11 +233,13 @@ namespace
         if (p.empty())
         {
             gPatchMissing++;
+            CrashLog_NoteFailedPatch(what);
             TACE_WARN("[patch] %s: signature not found - not applied", what);
         }
         else if (expected != 0 && p.size() != expected)
         {
             gPatchAmbiguous++;
+            CrashLog_NoteFailedPatch(what);
             TACE_WARN("[patch] %s: signature matches %zu sites, expected %zu - using the first (%p)",
                       what, p.size(), expected, p.get_first(0));
         }
@@ -399,6 +402,11 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
     if(fdwReason == DLL_PROCESS_ATTACH)
     {
         TaceLog_Init();
+
+        // First, deliberately: a crash inside TacePatch's own startup is
+        // exactly the crash worth catching, and everything below this line is
+        // signature matching against an executable we do not control.
+        CrashLog_Init();
 
         InitializeAllLimitAdjusters();
         PainVoice_Init();
@@ -730,6 +738,13 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
 
         TACE_INFO("[patch] %d applied, %d already open, %d not found, %d ambiguous",
                   gPatchApplied, gPatchAlready, gPatchMissing, gPatchAmbiguous);
+        CrashLog_SetPatchStats(gPatchApplied, gPatchAlready, gPatchMissing, gPatchAmbiguous);
+        if (_dwCurrentEpisode)
+        {
+            char ep[32];
+            sprintf(ep, "%d", *_dwCurrentEpisode);
+            CrashLog_SetNote("episode at startup", ep);
+        }
         TaceLog_Summary();
     }
 
