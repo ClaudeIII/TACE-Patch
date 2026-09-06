@@ -242,9 +242,9 @@ void GateProfile_Init()
             continue;
         }
         const int32_t *operand = (*at == 0xA1) ? *(int32_t **)(at + 1) : *(int32_t **)(at + 2);
-        if (operand != gEpisode)
+        if (!IsEpisodeGlobal(operand))
         {
-            mismatched++;
+            otherGlobal++;
             continue;
         }
 
@@ -295,8 +295,22 @@ void GateProfile_Init()
     if (mismatched)
         TACE_WARN("[gate] %zu gate(s) did not hold the expected opcode and were left alone"
                   " - this is not the build the table was generated from", mismatched);
-    TACE_INFO("[gate] episode value at %p, currently %d", (void *)gEpisode,
-              gEpisode ? *gEpisode : -1);
+    if (otherGlobal)
+        TACE_WARN("[gate] %zu gate(s) read an address that is not one of the %d episode"
+                  " mirrors found, and were left alone", otherGlobal, gGlobalCount);
+
+    // A direct check that TacePatch's own episodic patches landed: the table
+    // knows every gate they should have opened, so anything short of that is a
+    // patch that did not apply, and worth shouting about.
+    if (notApplied == 0)
+        TACE_OK("[gate] all %zu gates TacePatch patches are FORCED OPEN - its episodic"
+                " patches all landed", forced);
+    else
+        TACE_ERR("[gate] %zu of TacePatch's own gates are FORCED OPEN but %zu are NOT -"
+                 " those episodic patches did not apply", forced, notApplied);
+
+    TACE_INFO("[gate] episode value at %p, currently %d (%d mirror(s) recognised)",
+              (void *)gEpisode, gEpisode ? *gEpisode : -1, gGlobalCount);
     TACE_INFO("[gate] press VK 0x%02X to mark: it clears what has been reported, so"
               " perform an action and only the gates it touched appear", gMarkKey);
 
