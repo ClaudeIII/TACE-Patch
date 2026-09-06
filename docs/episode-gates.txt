@@ -1,7 +1,7 @@
 GTA IV 1.0.8.0 - EPISODE GATE INVENTORY  (executable only)
 ==============================================================================
 
-Generated 2026-09-05 from GTAIV.exe 1.0.8.0, ImageBase 00400000.
+Generated 2026-09-06 from GTAIV.exe 1.0.8.0, ImageBase 00400000.
 
 *** FINDINGS ONLY. Nothing here is implemented, patched or recommended. ***
 
@@ -12,27 +12,51 @@ only way to tell a content gate from a two-way per-episode choice.
 
 CONTENTS
   1  The unshipped episode 3         28 references
-  2  Best leads                      15 gates
+  2  Best leads                      16 gates
   3  All still-locked gates, by function
-  4  Gates TacePatch already opens   93
+  4  Gates TacePatch already opens   95
   5  Non-branch references           94
 
 THE THREE GLOBALS  (mirrors, written together by the setter at 007D4665 in a
 function carrying the GameLogic string; code branches on all three, so
 scanning any one of them alone is not enough)
-    0112D754  the global the branches overwhelmingly read      464 refs
+    0112D754  the global the branches overwhelmingly read      479 refs
     0112D788  what TacePatch _dwCurrentEpisode resolves to      63 refs
     0112D76C  third mirror                                      14 refs
 
 SUMMARY
-    references to an episode global .......... 541
-    branch-shaped (a real gate) .............. 447
-        already opened by TacePatch .......... 93
-        STILL EPISODE-LOCKED ................. 354
+    references to an episode global .......... 556
+    branch-shaped (a real gate) .............. 462
+        already opened by TacePatch .......... 95
+        STILL EPISODE-LOCKED ................. 367
     non-branch references .................... 94
 
-    locked by shape:   cmp-imm 235   cmp-reg 85   load-cmp 34
-    locked by episode: 0=50   1=43   2=174   3=28   unresolved=59
+    locked by shape:   cmp-imm 248   cmp-reg 85   load-cmp 34
+
+WHAT EACH GATE DOES
+  Worked out mechanically: find the gate branch, walk both paths a bounded
+  number of instructions, and diff what they reference - string constants,
+  float and integer constants, and call targets (a callee is named after the
+  first distinctive string it references). Anything that survives is what the
+  episode actually changes. Where nothing distinguishes the two paths the gate
+  is marked UNKNOWN, with the size and shape of the code it guards so it is
+  still a lead rather than a dead end.
+
+    gates a call     140
+    UNKNOWN           90
+    picks a call      76
+    picks a value     49
+    gates a block     47
+    gates a value     45
+    picks a name      15
+    ---
+    identified 372 of 462 (81%), 90 marked UNKNOWN
+
+  Verified against gates whose answer was already known by hand, e.g.
+  00AAAEA9 gives wpn_bullet_trace_e2 vs wpn_bullet_trace and 0098A963 gives
+  PU_SEADONE vs PU_SEADONEE2 - both correct.
+
+    locked by episode: 0=50   1=45   2=185   3=28   unresolved=59
 
 BEFORE OPENING ANY OF THEM
   A gate is content the game runs only in one episode; opening it makes that
@@ -365,7 +389,116 @@ interesting rather than live.
         00C23ADA  mov     byte ptr [esp + 0xa], 1         
 
 ##############################################################################
-#  SECTION 2 - BEST LEADS   (15)
+#  SECTION 1b - THE MOST LEGIBLE FINDINGS   (51)
+#  Locked gates where both paths were identified outright, so the episode
+#  difference is stated in the game own names and numbers. Start here.
+##############################################################################
+
+  0047C7A9  TBoGT                picks a value
+              4  vs  0
+  0047E928  base IV              picks a value
+              0  vs  72
+  004857A5  TBoGT                picks a value
+              1  vs  122, 123
+  004876C3  TBoGT                picks a value
+              64  vs  65, 72
+  00489BEC  base IV              picks a name
+              FE_BUTY FE_HLP25  vs  FE_BUTUL FE_HLP5
+  00489C0D  base IV              picks a name
+              FE_BUTLB FE_HLP40  vs  FE_BUTUL FE_HLP5
+  004969B7  UNSHIPPED EPISODE 3  picks a value
+              12  vs  22
+  00497357  value not resolved   picks a name
+              update:xbox360/textures/Leaderboards.xtd  vs  platform:/textures/leaderboards PLRankIcons
+  004992BC  TLAD                 picks a value
+              0  vs  1, 7
+  004993DB  TLAD                 picks a value
+              0  vs  7, 2
+  00499559  TLAD                 picks a value
+              1  vs  3, 4
+  0049B123  base IV              picks a value
+              50, 1, 19  vs  16
+  004A8BC3  TBoGT                picks a value
+              4  vs  0, 1
+  004B2C69  value not resolved   picks a value
+              0, 1  vs  40
+  007C1BCA  TBoGT                picks a value
+              19  vs  65, 2
+  007C1E16  TBoGT                picks a value
+              19  vs  71
+  007C94FC  base IV              picks a value
+              403, 411  vs  401, 402
+  007C9505  base IV              picks a value
+              403, 411  vs  401, 402
+  007DADD1  base IV              picks a name
+              pc\data  vs  Videos\Clips
+  007DADEA  base IV              picks a name
+              pc\data  vs  e1:/pc/data
+  007DAED8  base IV              picks a name
+              pc\data  vs  Videos\Clips
+  007DAEF1  base IV              picks a name
+              pc\data  vs  e1:/pc/data
+  007F045E  base IV              picks a value
+              80  vs  16
+  0082479F  TLAD                 picks a value
+              4  vs  0
+  0083614C  TLAD                 picks a value
+              4.5  vs  1, -6, -5.5
+  008530FA  TBoGT                picks a value
+              32  vs  64
+  00862475  TLAD                 picks a value
+              0.4, 0.8  vs  1, 0.9
+  0088BEF8  TLAD                 picks a value
+              80  vs  48
+  008A28EE  value not resolved   picks a value
+              0.005  vs  0.085
+  008A28F6  value not resolved   picks a value
+              0.005  vs  0.085
+  008ACB7C  value not resolved   picks a value
+              0.8  vs  -1e+06
+  008AD0ED  TBoGT                picks a value
+              48  vs  80
+  0098A963  TLAD                 picks a name
+              PU_SEADONE  vs  PU_SEADONEE2
+  00A7C942  TBoGT                picks a value
+              13.5  vs  20
+  00A9F533  TLAD                 picks a value
+              0.515  vs  0.46
+  00AB3FA5  value not resolved   picks a value
+              0.35  vs  0.7, 1.5, -0.5
+  00AE75DF  TBoGT                picks a value
+              66  vs  71
+  00AEFB9A  value not resolved   picks a name
+              common:/DATA/CREDITS_PC.DAT  vs  common:/DATA/CREDITS.DAT
+  00AF04EB  TBoGT                picks a name
+              water_boat_propellor_e2  vs  water_boat_propellor
+  00AF36D2  TBoGT                picks a name
+              water_boat_wash_e2  vs  water_boat_wash
+  00AF3792  TBoGT                picks a name
+              water_boat_entry_e2  vs  water_boat_entry
+  00B7071B  value not resolved   picks a value
+              1  vs  0
+  00BB8A9A  TLAD                 picks a value
+              8, 1  vs  55, 0.0008
+  00C6F30F  TBoGT                picks a value
+              2.25  vs  1.5, 0.707
+  00CB5E7F  TBoGT                picks a value
+              3, 2  vs  1
+  00CC3EA7  base IV              picks a value
+              1, 0  vs  269
+  00D3B872  TBoGT                picks a value
+              59  vs  65
+  00D3B9B5  TBoGT                picks a value
+              59  vs  65
+  00D3C915  TBoGT                picks a value
+              59  vs  65
+  00D42135  value not resolved   picks a name
+              update:pc/textures/Leaderboards.xtd  vs  platform:/textures/leaderboards NetStatsIcons
+  00D472DB  TBoGT                picks a value
+              71  vs  1
+
+##############################################################################
+#  SECTION 2 - BEST LEADS   (16)
 #  Locked gates in a function where TacePatch ALREADY opens a sibling gate.
 #  The feature was clearly wanted and a branch was left behind.
 ##############################################################################
@@ -373,1295 +506,1729 @@ interesting rather than live.
   function 00494DE0
       strings: QSVj
       opened : 0049503E  cmp dword ptr [0x112d754], 2       <- Parachute anims
-      LOCKED : 00494F54  cmp dword ptr [0x112d754], esi     jne   value not resolved
+      LOCKED 00494F54  cmp-reg   jne   value not resolved   cmp dword ptr [0x112d754], esi
+                gates a call: runs sub_008B4560
 
   function 004A6980
       strings: target
       opened : 004A6F1E  cmp dword ptr [0x112d754], 2       <- Sticky bomb drop icon
       opened : 004A6F47  cmp dword ptr [0x112d754], 0       <- PipeBombDropIconSupport
-      LOCKED : 004A6C05  cmp dword ptr [0x112d754], 2       je    TBoGT
-      LOCKED : 004A730A  cmp dword ptr [0x112d754], 2       je    TBoGT
+      LOCKED 004A6C05  cmp-imm   je    TBoGT                cmp dword ptr [0x112d754], 2
+                gates a block: calls sub_004A3D70
+      LOCKED 004A730A  cmp-imm   je    TBoGT                cmp dword ptr [0x112d754], 2
+                gates a block: calls sub_00CF4E8C
 
   function 0084A8E0
       strings: cj_cone / cj_cylinder / _ICON / CJ_ARROW_ICON / CJ_ARROW_ICON_2
       opened : 0084AA71  cmp dword ptr [0x112d788], 2       <- E2_Landing marker request model #3
-      LOCKED : 0084A99E  mov eax, dword ptr [0x112d788]     -     TBoGT
+      LOCKED 0084A99E  load-cmp  -     TBoGT                mov eax, dword ptr [0x112d788]
+                UNKNOWN - episode read, branch not resolved; nearby: CJ_R_ICON_FLAG, P_e2_landing_marker
 
   function 00850EF0
       opened : 00850F03  cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (BUZZARD) weapon effects
-      LOCKED : 00850F9E  cmp dword ptr [0x112d754], 2       jl    TBoGT
+      LOCKED 00850F9E  cmp-imm   jl    TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: skips sub_008DDEB0
+
+  function 0098A736
+      opened : 0098AC20  cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (APC) #7
+      LOCKED 0098A963  cmp-imm   jne   TLAD                 cmp dword ptr [0x112d754], 1
+                picks a name: PU_SEADONE  vs  PU_SEADONEE2
 
   function 009D0B80
       opened : 009D0BD0  cmp dword ptr [0x112d754], 2       <- Sticky bomb
-      LOCKED : 009D0D0B  cmp dword ptr [0x112d754], 2       jne   TBoGT
+      LOCKED 009D0D0B  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a call: isNetworkGameRunning  vs  sub_00AB28C0, sub_00910B90
 
   function 00AF0450
       strings: water_boat_propellor_e2 / water_boat_propellor / speed / depth / reverse
       opened : 00AF0714  cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport Boat models #1
-      LOCKED : 00AF04EB  cmp dword ptr [0x112d754], 2       jne   TBoGT
-      LOCKED : 00AF0785  cmp dword ptr [0x112d754], 2       -     TBoGT
+      LOCKED 00AF04EB  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a name: water_boat_propellor_e2  vs  water_boat_propellor
+      LOCKED 00AF0785  cmp-imm   -     TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - episode read, branch not resolved
 
   function 00AF2F50
       strings: water_boat_bow_e2 / water_boat_rev_e2 / water_boat_bow / water_boat_rev / speed
       opened : 00AF330C  cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport Boat models #2
-      LOCKED : 00AF2FA8  cmp dword ptr [0x112d754], 2       -     TBoGT
-      LOCKED : 00AF3358  cmp dword ptr [0x112d754], 2       jne   TBoGT
+      LOCKED 00AF2FA8  cmp-imm   -     TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - episode read, branch not resolved; nearby: 2
+      LOCKED 00AF3358  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - guards 71 bytes of inline code (flag bits)
 
   function 00AF3388
       strings: water_boat_rev_e2 / water_boat_bow / water_boat_rev / water_boat_wash_e2 / water_boat_wash
       opened : 00AF3686  cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport Boat models #2
-      LOCKED : 00AF3472  cmp dword ptr [0x112d754], 2       -     TBoGT
-      LOCKED : 00AF36D2  cmp dword ptr [0x112d754], 2       jne   TBoGT
+      LOCKED 00AF3472  cmp-imm   -     TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - episode read, branch not resolved
+      LOCKED 00AF36D2  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a name: water_boat_wash_e2  vs  water_boat_wash
 
   function 00AF3740
       strings: water_boat_entry_e2 / water_boat_entry / speed / fff?
       opened : 00AF3938  cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport Boat models #4
-      LOCKED : 00AF3792  cmp dword ptr [0x112d754], 2       jne   TBoGT
-      LOCKED : 00AF397C  cmp dword ptr [0x112d754], 2       -     TBoGT
+      LOCKED 00AF3792  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a name: water_boat_entry_e2  vs  water_boat_entry
+      LOCKED 00AF397C  cmp-imm   -     TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - episode read, branch not resolved
 
   function 00BCB8B0
       strings: still / veh@bike_freeway
       opened : 00BCB925  cmp dword ptr [0x112d754], eax     <- BikeFeetFix
-      LOCKED : 00BCBC07  cmp dword ptr [0x112d754], 1       jl    TLAD
+      LOCKED 00BCBC07  cmp-imm   jl    TLAD                 cmp dword ptr [0x112d754], 1
+                gates a value: sets 0.25, 0
 
 ##############################################################################
 #  SECTION 3 - ALL STILL-LOCKED GATES, GROUPED BY FUNCTION
 ##############################################################################
 
-  266 functions contain at least one locked gate. A function listing several
+  277 functions contain at least one locked gate. A function listing several
   is usually one feature with several branches; read them together.
 
 ------------------------------------------------------------------------------
   function 00475D90   (1 locked)
-      00475D90  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
+      00475D90  cmp-imm   jne   base IV              cmp dword ptr [0x112d754], 0
+                UNKNOWN - guards 13 bytes of inline code (flag bits)
 
 ------------------------------------------------------------------------------
   function 00475DB0   (1 locked)
-      00475DB0  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
+      00475DB0  cmp-imm   jne   base IV              cmp dword ptr [0x112d754], 0
+                UNKNOWN - guards 15 bytes of inline code (flag bits)
 
 ------------------------------------------------------------------------------
   function 0047C4BD   (1 locked)
       strings: MO_BENCH_TEST
-      0047C7A9  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+      0047C7A9  cmp-imm   jl    TBoGT                cmp dword ptr [0x112d754], 2
+                picks a value: 4  vs  0
 
 ------------------------------------------------------------------------------
   function 0047E7D1   (1 locked)
       strings: SE_SURE0 / SG_TIT / LG_SURE / DEFD_SURE / LEAVE_SURE
-      0047E928  load-cmp  jne   mov ecx, dword ptr [0x112d754]     base IV
+      0047E928  load-cmp  jne   base IV              mov ecx, dword ptr [0x112d754]
+                picks a value: 0  vs  72
 
 ------------------------------------------------------------------------------
   function 0047FE25   (1 locked)
-      004800AD  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+      004800AD  cmp-imm   jne   TLAD                 cmp dword ptr [0x112d754], 1
+                gates a call: skips sub_00475990
 
 ------------------------------------------------------------------------------
   function 00481EE5   (1 locked)
-      00481F72  cmp-reg   jne   cmp dword ptr [0x112d754], esi     value not resolved
+      00481F72  cmp-reg   jne   value not resolved   cmp dword ptr [0x112d754], esi
+                gates a block: calls sub_00475990, sub_007BDC10
 
 ------------------------------------------------------------------------------
   function 0048277B   (1 locked)
-      004827E8  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      004827E8  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: runs sub_0085CF20
 
 ------------------------------------------------------------------------------
   function 004831B0   (1 locked)
       strings: PLNEWCLOTH
-      004832A4  cmp-imm   sete  cmp dword ptr [0x112d754], 2       TBoGT
+      004832A4  cmp-imm   sete  TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - no conditional branch within 10 instructions
 
 ------------------------------------------------------------------------------
   function 00485440   (3 locked)
-      004857A5  cmp-reg   jne   cmp dword ptr [0x112d754], esi     TBoGT
-      0048596C  cmp-reg   jne   cmp dword ptr [0x112d754], esi     value not resolved
-      00485A4D  cmp-imm   jne   cmp dword ptr [0x112d788], 2       TBoGT
+      004857A5  cmp-reg   jne   TBoGT                cmp dword ptr [0x112d754], esi
+                picks a value: 1  vs  122, 123
+      0048596C  cmp-reg   jne   value not resolved   cmp dword ptr [0x112d754], esi
+                picks a call: sub_0086A900  vs  sub_00885B70, sub_008A4000
+      00485A4D  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d788], 2
+                gates a block: calls sub_0086A900
 
 ------------------------------------------------------------------------------
   function 0048634C   (1 locked)
-      004865A2  cmp-imm   jne   cmp dword ptr [0x112d788], 2       TBoGT
+      004865A2  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d788], 2
+                gates a block: calls sub_0086A900
 
 ------------------------------------------------------------------------------
   function 00487640   (2 locked)
       strings: leted
-      004876C3  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
-      004879B2  cmp-imm   je    cmp dword ptr [0x112d754], 0       base IV
+      004876C3  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a value: 64  vs  65, 72
+      004879B2  cmp-imm   je    base IV              cmp dword ptr [0x112d754], 0
+                UNKNOWN - branch body not a simple block (field writes, flag bits)
 
 ------------------------------------------------------------------------------
   function 00487D60   (1 locked)
-      00487D60  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+      00487D60  cmp-imm   jne   TLAD                 cmp dword ptr [0x112d754], 1
+                UNKNOWN - guards 5 bytes of inline code (no calls or constants)
 
 ------------------------------------------------------------------------------
   function 00487D70   (1 locked)
-      00487D7C  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+      00487D7C  cmp-imm   jne   TLAD                 cmp dword ptr [0x112d754], 1
+                gates a call: runs sub_007BD670
 
 ------------------------------------------------------------------------------
   function 00489B75   (2 locked)
       strings: PAD_START / FE_HLP3 / FE_CANCEL / FE_HLP27 / FE_ACCEPT
-      00489BEC  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
-      00489C0D  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
+      00489BEC  cmp-imm   jne   base IV              cmp dword ptr [0x112d754], 0
+                picks a name: FE_BUTY FE_HLP25  vs  FE_BUTUL FE_HLP5
+      00489C0D  cmp-imm   jne   base IV              cmp dword ptr [0x112d754], 0
+                picks a name: FE_BUTLB FE_HLP40  vs  FE_BUTUL FE_HLP5
 
 ------------------------------------------------------------------------------
   function 0048DB90   (1 locked)
-      0048DB94  load-cmp  jne   mov ebx, dword ptr [0x112d754]     base IV
+      0048DB94  load-cmp  jne   base IV              mov ebx, dword ptr [0x112d754]
+                gates a call: runs sub_0049CE10
 
 ------------------------------------------------------------------------------
   function 0049038F   (1 locked)
-      004904F7  load-cmp  je    mov eax, dword ptr [0x112d788]     base IV
+      004904F7  load-cmp  je    base IV              mov eax, dword ptr [0x112d788]
+                picks a call: Rockstar Games\GTA IV\Videos\Clips  vs  FE_NODLC3, LOADINGSCREENS
 
 ------------------------------------------------------------------------------
   function 00493A00   (1 locked)
-      00493A85  cmp-reg   jne   cmp dword ptr [0x112d754], ebx     value not resolved
+      00493A85  cmp-reg   jne   value not resolved   cmp dword ptr [0x112d754], ebx
+                gates a call: runs sub_00891440
 
 ------------------------------------------------------------------------------
   function 00493E20   (2 locked)
-      00493E9E  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
-      00493EB1  cmp-reg   je    cmp edi, dword ptr [0x112d788]     value not resolved
+      00493E9E  cmp-imm   jne   TLAD                 cmp dword ptr [0x112d754], 1
+                gates a call: runs sub_00B4A710
+      00493EB1  cmp-reg   je    value not resolved   cmp edi, dword ptr [0x112d788]
+                gates a call: runs common:/DATA/HUD.DAT, HUD_WEAPON_SCOPE_BIT_3
 
 ------------------------------------------------------------------------------
   function 00494140   (1 locked)
       strings: FE_NODLC3 / FE_NODLC2
-      004941D6  cmp-reg   jne   cmp dword ptr [0x112d754], edi     base IV
+      004941D6  cmp-reg   jne   base IV              cmp dword ptr [0x112d754], edi
+                picks a call: sub_008B4A30, common:/data/gta.dat  vs  sub_004939B0, sub_00890900
 
 ------------------------------------------------------------------------------
   function 004944E0   (1 locked)
-      00494656  cmp-reg   jne   cmp dword ptr [0x112d788], ebp     value not resolved
+      00494656  cmp-reg   jne   value not resolved   cmp dword ptr [0x112d788], ebp
+                gates a call: runs LOADING_TUNE
 
 ------------------------------------------------------------------------------
   function 004947E0   (2 locked)
-      0049481A  load-cmp  jl    mov esi, dword ptr [0x112d788]     TLAD
-      00494835  load-cmp  jle   mov esi, dword ptr [0x112d788]     base IV
+      0049481A  load-cmp  jl    TLAD                 mov esi, dword ptr [0x112d788]
+                picks a call: sub_00890970  vs  sub_00890900, sub_00890550
+      00494835  load-cmp  jle   base IV              mov esi, dword ptr [0x112d788]
+                picks a call: sub_008909E0, sub_00890900  vs  sub_007F91D0, sub_008A30D0
 
 ------------------------------------------------------------------------------
   function 004949B0   (1 locked)
-      00494A23  cmp-reg   je    cmp esi, dword ptr [0x112d76c]     value not resolved
+      00494A23  cmp-reg   je    value not resolved   cmp esi, dword ptr [0x112d76c]
+                gates a call: runs sub_00890460
 
 ------------------------------------------------------------------------------
   function 00494B91   (1 locked)
-      00494BF0  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00494BF0  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: runs sub_00890460, sub_006CBA50
 
 ------------------------------------------------------------------------------
   function 00494C90   (1 locked)
-      00494D8D  load-cmp  jg    mov eax, dword ptr [0x112d788]     value not resolved
+      00494D8D  load-cmp  jg    value not resolved   mov eax, dword ptr [0x112d788]
+                gates a call: skips FE_NODLC3, sub_0085A850
 
 ------------------------------------------------------------------------------
   function 00494DE0   (1 locked, 1 already opened)
       strings: QSVj
       opened : 0049503E  cmp dword ptr [0x112d754], 2       <- Parachute anims
-      00494F54  cmp-reg   jne   cmp dword ptr [0x112d754], esi     value not resolved
+      00494F54  cmp-reg   jne   value not resolved   cmp dword ptr [0x112d754], esi
+                gates a call: runs sub_008B4560
 
 ------------------------------------------------------------------------------
   function 00496930   (1 locked)
       strings: playersettings2
-      004969B7  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+      004969B7  cmp-imm   jne   UNSHIPPED EPISODE 3  cmp dword ptr [0x112d754], 3
+                picks a value: 12  vs  22
 
 ------------------------------------------------------------------------------
   function 00497080   (2 locked)
       strings: platform:/textures/leaderboards / PLRankIcons / update:xbox360/textures/Leaderboards.xtd
-      00497250  cmp-reg   je    cmp dword ptr [0x112d754], ebx     value not resolved
-      00497357  cmp-reg   jne   cmp dword ptr [0x112d788], ebx     value not resolved
+      00497250  cmp-reg   je    value not resolved   cmp dword ptr [0x112d754], ebx
+                picks a call: sub_0045D290  vs  memory:
+      00497357  cmp-reg   jne   value not resolved   cmp dword ptr [0x112d788], ebx
+                picks a name: update:xbox360/textures/Leaderboards.xtd  vs  platform:/textures/leaderboards PLRankIcons
 
 ------------------------------------------------------------------------------
   function 004973F4   (1 locked)
       strings: PLRankIcons / iler 9.26.952.2844
-      00497775  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+      00497775  cmp-imm   jne   UNSHIPPED EPISODE 3  cmp dword ptr [0x112d754], 3
+                gates a call: runs sub_007F8E80, sub_007F8F80
 
 ------------------------------------------------------------------------------
   function 004982E0   (1 locked)
-      004982E0  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
+      004982E0  cmp-imm   jne   base IV              cmp dword ptr [0x112d754], 0
+                UNKNOWN - guards 34 bytes of inline code (flag bits)
 
 ------------------------------------------------------------------------------
   function 004985F0   (1 locked)
-      004985F1  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
+      004985F1  cmp-imm   jne   base IV              cmp dword ptr [0x112d754], 0
+                gates a call: runs sub_00498C50, sub_00498CB0
 
 ------------------------------------------------------------------------------
   function 00498B40   (1 locked)
-      00498BBF  load-cmp  jne   mov edi, dword ptr [0x112d754]     base IV
+      00498BBF  load-cmp  jne   base IV              mov edi, dword ptr [0x112d754]
+                picks a call: sub_00499FD0  vs  sub_00475DB0, sub_0049A7D0
 
 ------------------------------------------------------------------------------
   function 00498BE1   (1 locked)
-      00498BF9  load-cmp  jne   mov eax, dword ptr [0x112d754]     base IV
+      00498BF9  load-cmp  jne   base IV              mov eax, dword ptr [0x112d754]
+                picks a call: sub_0049A430  vs  sub_00499110
 
 ------------------------------------------------------------------------------
   function 00498F60   (2 locked)
-      0049909A  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
-      004990C5  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
+      0049909A  cmp-imm   jne   base IV              cmp dword ptr [0x112d754], 0
+                gates a call: skips sub_007F8F80
+      004990C5  cmp-imm   jne   base IV              cmp dword ptr [0x112d754], 0
+                gates a call: skips sub_007F8F80
 
 ------------------------------------------------------------------------------
   function 00499110   (5 locked)
-      00499113  cmp-imm   je    cmp dword ptr [0x112d754], 0       base IV
-      004992BC  cmp-imm   jle   cmp dword ptr [0x112d754], 1       TLAD
-      004993DB  cmp-imm   jle   cmp dword ptr [0x112d754], 1       TLAD
-      004994F3  cmp-imm   jg    cmp dword ptr [0x112d754], 1       TLAD
-      00499559  cmp-imm   jle   cmp dword ptr [0x112d754], 1       TLAD
+      00499113  cmp-imm   je    base IV              cmp dword ptr [0x112d754], 0
+                UNKNOWN - branch body not a simple block (field writes)
+      004992BC  cmp-imm   jle   TLAD                 cmp dword ptr [0x112d754], 1
+                picks a value: 0  vs  1, 7
+      004993DB  cmp-imm   jle   TLAD                 cmp dword ptr [0x112d754], 1
+                picks a value: 0  vs  7, 2
+      004994F3  cmp-imm   jg    TLAD                 cmp dword ptr [0x112d754], 1
+                picks a call: sub_0049C8C0, sub_0049CFC0  vs  sub_0048EA40
+      00499559  cmp-imm   jle   TLAD                 cmp dword ptr [0x112d754], 1
+                picks a value: 1  vs  3, 4
 
 ------------------------------------------------------------------------------
   function 00499FD0   (1 locked)
-      00499FD3  cmp-imm   je    cmp dword ptr [0x112d754], 0       base IV
+      00499FD3  cmp-imm   je    base IV              cmp dword ptr [0x112d754], 0
+                picks a call: sub_0096C3D0  vs  sub_00498A70
 
 ------------------------------------------------------------------------------
   function 0049A430   (1 locked)
-      0049A433  cmp-imm   je    cmp dword ptr [0x112d754], 0       base IV
+      0049A433  cmp-imm   je    base IV              cmp dword ptr [0x112d754], 0
+                picks a call: sub_0096C3D0  vs  sub_00498A70
 
 ------------------------------------------------------------------------------
   function 0049A7D0   (1 locked)
-      0049A7D0  cmp-imm   je    cmp dword ptr [0x112d754], 0       base IV
+      0049A7D0  cmp-imm   je    base IV              cmp dword ptr [0x112d754], 0
+                picks a call: sub_0096C3D0  vs  sub_00498A70
 
 ------------------------------------------------------------------------------
   function 0049AFE0   (5 locked)
-      0049B002  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
-      0049B030  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
-      0049B074  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
-      0049B094  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
-      0049B123  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
+      0049B002  cmp-imm   jne   base IV              cmp dword ptr [0x112d754], 0
+                gates a block: calls sub_007BFC20
+      0049B030  cmp-imm   jne   UNSHIPPED EPISODE 3  cmp dword ptr [0x112d754], 3
+                picks a call: sub_0048C7D0  vs  sub_0048BCB0
+      0049B074  cmp-imm   jne   base IV              cmp dword ptr [0x112d754], 0
+                picks a call: sub_00711AB0  vs  sub_007BFC20
+      0049B094  cmp-imm   jne   base IV              cmp dword ptr [0x112d754], 0
+                gates a block: calls sub_007BFC20, sub_00475D90
+      0049B123  cmp-imm   jne   base IV              cmp dword ptr [0x112d754], 0
+                picks a value: 50, 1, 19  vs  16
 
 ------------------------------------------------------------------------------
   function 0049B520   (1 locked)
       strings: update:/data/frontend_menus.xml
-      0049B593  cmp-imm   jne   cmp dword ptr [0x112d788], 0       base IV
+      0049B593  cmp-imm   jne   base IV              cmp dword ptr [0x112d788], 0
+                picks a call: sub_0045D290, sub_0049B4A0  vs  sub_00CF4E7D
 
 ------------------------------------------------------------------------------
   function 0049CD40   (1 locked)
-      0049CD5E  cmp-reg   jne   cmp dword ptr [0x112d754], esi     value not resolved
+      0049CD5E  cmp-reg   jne   value not resolved   cmp dword ptr [0x112d754], esi
+                picks a call: sub_007372D0  vs  sub_007374B0
 
 ------------------------------------------------------------------------------
   function 0049CE10   (1 locked)
-      0049CE30  cmp-reg   jne   cmp dword ptr [0x112d754], esi     value not resolved
+      0049CE30  cmp-reg   jne   value not resolved   cmp dword ptr [0x112d754], esi
+                picks a call: sub_007372D0  vs  sub_007374B0
 
 ------------------------------------------------------------------------------
   function 0049D2B0   (1 locked)
-      0049D2D2  cmp-reg   jne   cmp dword ptr [0x112d754], esi     value not resolved
+      0049D2D2  cmp-reg   jne   value not resolved   cmp dword ptr [0x112d754], esi
+                picks a call: sub_007372D0  vs  sub_007374B0
 
 ------------------------------------------------------------------------------
   function 004A0010   (1 locked)
-      004A0094  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
+      004A0094  cmp-imm   jne   base IV              cmp dword ptr [0x112d754], 0
+                gates a call: runs sub_006CC3D0
 
 ------------------------------------------------------------------------------
   function 004A3F30   (1 locked)
-      004A4133  cmp-reg   je    cmp dword ptr [0x112d754], ebx     value not resolved
+      004A4133  cmp-reg   je    value not resolved   cmp dword ptr [0x112d754], ebx
+                gates a value: sets 0, 1.2
 
 ------------------------------------------------------------------------------
   function 004A4661   (2 locked)
-      004A496F  cmp-imm   je    cmp dword ptr [0x112d754], 2       TBoGT
-      004A538D  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      004A496F  cmp-imm   je    TBoGT                cmp dword ptr [0x112d754], 2
+                gates a block: calls sub_007CD2C0, sub_009B2460
+      004A538D  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a call: sub_007CD230  vs  sub_008D12F0
 
 ------------------------------------------------------------------------------
   function 004A6980   (2 locked, 2 already opened)
       strings: target
       opened : 004A6F1E  cmp dword ptr [0x112d754], 2       <- Sticky bomb drop icon
       opened : 004A6F47  cmp dword ptr [0x112d754], 0       <- PipeBombDropIconSupport
-      004A6C05  cmp-imm   je    cmp dword ptr [0x112d754], 2       TBoGT
-      004A730A  cmp-imm   je    cmp dword ptr [0x112d754], 2       TBoGT
+      004A6C05  cmp-imm   je    TBoGT                cmp dword ptr [0x112d754], 2
+                gates a block: calls sub_004A3D70
+      004A730A  cmp-imm   je    TBoGT                cmp dword ptr [0x112d754], 2
+                gates a block: calls sub_00CF4E8C
 
 ------------------------------------------------------------------------------
   function 004A8B4A   (2 locked)
-      004A8BC3  cmp-imm   jge   cmp dword ptr [0x112d754], 2       TBoGT
-      004A8C32  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+      004A8BC3  cmp-imm   jge   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a value: 4  vs  0, 1
+      004A8C32  cmp-imm   jl    TBoGT                cmp dword ptr [0x112d754], 2
+                picks a call: sub_0089DEF0  vs  sub_0089C0D0
 
 ------------------------------------------------------------------------------
   function 004B2650   (1 locked)
-      004B291B  load-cmp  je    mov eax, dword ptr [0x112d754]     TBoGT
+      004B291B  load-cmp  je    TBoGT                mov eax, dword ptr [0x112d754]
+                UNKNOWN - guards 5 bytes of inline code (flag bits)
 
 ------------------------------------------------------------------------------
   function 004B29D0   (2 locked)
-      004B2AB4  cmp-reg   jne   cmp dword ptr [0x112d754], edi     value not resolved
-      004B2C69  cmp-reg   jl    cmp dword ptr [0x112d754], edi     value not resolved
+      004B2AB4  cmp-reg   jne   value not resolved   cmp dword ptr [0x112d754], edi
+                picks a call: isNetworkGameRunning  vs  sub_004B1EC0
+      004B2C69  cmp-reg   jl    value not resolved   cmp dword ptr [0x112d754], edi
+                picks a value: 0, 1  vs  40
 
 ------------------------------------------------------------------------------
   function 006C27A0   (1 locked)
       strings: Hosting RENDEZVOUS session / Hosting TvT session / Hosting STANDARD session
-      006C2826  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+      006C2826  cmp-imm   jne   UNSHIPPED EPISODE 3  cmp dword ptr [0x112d754], 3
+                UNKNOWN - guards 26 bytes of inline code (field writes, flag bits)
 
 ------------------------------------------------------------------------------
   function 006C2B39   (1 locked)
-      006C2B99  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+      006C2B99  cmp-imm   jne   UNSHIPPED EPISODE 3  cmp dword ptr [0x112d754], 3
+                UNKNOWN - guards 26 bytes of inline code (field writes, flag bits)
 
 ------------------------------------------------------------------------------
   function 006C5290   (1 locked)
       strings: CREATING_MY_PEER
-      006C5350  cmp-imm   cmove cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+      006C5350  cmp-imm   cmove UNSHIPPED EPISODE 3  cmp dword ptr [0x112d754], 3
+                gates a call: skips sub_008908A0
 
 ------------------------------------------------------------------------------
   function 006C7180   (1 locked)
       strings: MP_SESSION_FULL / MP_BLACKLISTED / MP_WRONGVERSION / MP_NOPASS / MP_UNKNOWN
-      006C730D  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+      006C730D  cmp-imm   jne   UNSHIPPED EPISODE 3  cmp dword ptr [0x112d754], 3
+                picks a call: sub_006C70C0  vs  sub_006BEB10
 
 ------------------------------------------------------------------------------
   function 006C9220   (1 locked)
       strings: update:/data/leaderboards_data.xml
-      006C92B7  cmp-reg   jne   cmp dword ptr [0x112d788], edi     base IV
+      006C92B7  cmp-reg   jne   base IV              cmp dword ptr [0x112d788], edi
+                picks a call: sub_0045D290, sub_006CA0A0  vs  sub_00CF4E7D
+
+------------------------------------------------------------------------------
+  function 006D3AAC   (1 locked)
+      006D3B12  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: runs sub_004ABB50, sub_0088BB60
 
 ------------------------------------------------------------------------------
   function 006F1470   (1 locked)
-      006F14AF  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+      006F14AF  cmp-imm   jne   UNSHIPPED EPISODE 3  cmp dword ptr [0x112d754], 3
+                UNKNOWN - guards 52 bytes of inline code (field writes, flag bits)
 
 ------------------------------------------------------------------------------
   function 0070FEF0   (1 locked)
-      0070FF63  cmp-reg   jne   cmp dword ptr [0x112d754], ebx     value not resolved
+      0070FF63  cmp-reg   jne   value not resolved   cmp dword ptr [0x112d754], ebx
+                gates a call: runs sub_006C8D50
 
 ------------------------------------------------------------------------------
   function 00710110   (3 locked)
-      007102AA  cmp-reg   jne   cmp dword ptr [0x112d754], edi     UNSHIPPED EPISODE 3
-      00710384  cmp-reg   jne   cmp dword ptr [0x112d754], ebx     value not resolved
-      007103C8  cmp-reg   jne   cmp dword ptr [0x112d754], edi     value not resolved
+      007102AA  cmp-reg   jne   UNSHIPPED EPISODE 3  cmp dword ptr [0x112d754], edi
+                picks a call: sub_007110B0  vs  sub_00711220, sub_007105D0
+      00710384  cmp-reg   jne   value not resolved   cmp dword ptr [0x112d754], ebx
+                gates a call: runs sub_006C8D50
+      007103C8  cmp-reg   jne   value not resolved   cmp dword ptr [0x112d754], edi
+                gates a call: runs sub_004035E0, sub_004D5E00
 
 ------------------------------------------------------------------------------
   function 007105D0   (1 locked)
-      0071061A  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      0071061A  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: runs sub_009A2CF0
 
 ------------------------------------------------------------------------------
   function 00710660   (1 locked)
-      00710719  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+      00710719  cmp-imm   jne   UNSHIPPED EPISODE 3  cmp dword ptr [0x112d754], 3
+                picks a call: sub_007372D0  vs  sub_007374B0
 
 ------------------------------------------------------------------------------
   function 00710790   (1 locked)
-      00710826  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+      00710826  cmp-imm   jne   UNSHIPPED EPISODE 3  cmp dword ptr [0x112d754], 3
+                picks a call: sub_007372D0  vs  sub_007374B0
 
 ------------------------------------------------------------------------------
   function 00710DA0   (1 locked)
-      00710DBE  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+      00710DBE  cmp-imm   jne   UNSHIPPED EPISODE 3  cmp dword ptr [0x112d754], 3
+                UNKNOWN - guards 128 bytes of inline code (no calls or constants)
 
 ------------------------------------------------------------------------------
   function 00710F00   (1 locked)
-      00710F16  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+      00710F16  cmp-imm   jne   UNSHIPPED EPISODE 3  cmp dword ptr [0x112d754], 3
+                gates a call: runs sub_00711840
 
 ------------------------------------------------------------------------------
   function 00711AB0   (1 locked)
-      00711AB9  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+      00711AB9  cmp-imm   jne   UNSHIPPED EPISODE 3  cmp dword ptr [0x112d754], 3
+                gates a call: runs sub_00711B70, sub_007372D0
 
 ------------------------------------------------------------------------------
   function 00711B70   (1 locked)
-      00711B79  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+      00711B79  cmp-imm   jne   UNSHIPPED EPISODE 3  cmp dword ptr [0x112d754], 3
+                gates a call: runs sub_006CBB40, sub_00498AB0
 
 ------------------------------------------------------------------------------
   function 00720CF4   (1 locked)
-      00720D3B  load-cmp  je    mov eax, dword ptr [0x112d754]     base IV
+      00720D3B  load-cmp  je    base IV              mov eax, dword ptr [0x112d754]
+                picks a call: sub_00722340  vs  sub_00CF4E7D
 
 ------------------------------------------------------------------------------
   function 007BBB20   (1 locked)
-      007BBB79  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      007BBB79  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a value: sets 1
 
 ------------------------------------------------------------------------------
   function 007BCB70   (1 locked)
-      007BCB75  cmp-imm   jne   cmp dword ptr [0x112d788], 0       base IV
+      007BCB75  cmp-imm   jne   base IV              cmp dword ptr [0x112d788], 0
+                UNKNOWN - guards 10 bytes of inline code (no calls or constants)
 
 ------------------------------------------------------------------------------
   function 007BD1C0   (1 locked)
-      007BD26B  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
+      007BD26B  cmp-imm   jne   base IV              cmp dword ptr [0x112d754], 0
+                picks a call: sub_00498E50  vs  sub_007F8F80
 
 ------------------------------------------------------------------------------
   function 007C1330   (1 locked)
-      007C19C7  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      007C19C7  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a value: sets 0.004
 
 ------------------------------------------------------------------------------
   function 007C1B30   (1 locked)
-      007C1BCA  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      007C1BCA  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a value: 19  vs  65, 2
 
 ------------------------------------------------------------------------------
   function 007C1D61   (1 locked)
       strings: ~PAD_UP~ / ~PAD_DOWN~ / ~PAD_LEFT~ / ~PAD_RIGHT~ / ~PAD_DPAD_ALL~
-      007C1E16  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      007C1E16  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a value: 19  vs  71
 
 ------------------------------------------------------------------------------
   function 007C5D00   (1 locked)
       strings: PLS_NONE / FO_TWO_NUM / FO_NUM
-      007C5E56  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+      007C5E56  cmp-imm   jne   TLAD                 cmp dword ptr [0x112d754], 1
+                UNKNOWN - guards 5 bytes of inline code (no calls or constants)
 
 ------------------------------------------------------------------------------
   function 007C94E8   (2 locked)
-      007C94FC  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
-      007C9505  cmp-imm   jne   cmp dword ptr [0x112d788], 0       base IV
+      007C94FC  cmp-imm   jne   base IV              cmp dword ptr [0x112d754], 0
+                picks a value: 403, 411  vs  401, 402
+      007C9505  cmp-imm   jne   base IV              cmp dword ptr [0x112d788], 0
+                picks a value: 403, 411  vs  401, 402
 
 ------------------------------------------------------------------------------
   function 007DADC0   (2 locked)
       strings: pc\data / e1:/pc/data / e2:/pc/data / Videos\Clips
-      007DADD1  load-cmp  jne   mov eax, dword ptr [0x112d754]     base IV
-      007DADEA  load-cmp  jne   mov eax, dword ptr [0x112d754]     base IV
+      007DADD1  load-cmp  jne   base IV              mov eax, dword ptr [0x112d754]
+                picks a name: pc\data  vs  Videos\Clips
+      007DADEA  load-cmp  jne   base IV              mov eax, dword ptr [0x112d754]
+                picks a name: pc\data  vs  e1:/pc/data
 
 ------------------------------------------------------------------------------
   function 007DAEC0   (2 locked)
       strings: pc\data / e1:/pc/data / e2:/pc/data / Videos\Clips
-      007DAED8  load-cmp  jne   mov eax, dword ptr [0x112d754]     base IV
-      007DAEF1  load-cmp  jne   mov eax, dword ptr [0x112d754]     base IV
+      007DAED8  load-cmp  jne   base IV              mov eax, dword ptr [0x112d754]
+                picks a name: pc\data  vs  Videos\Clips
+      007DAEF1  load-cmp  jne   base IV              mov eax, dword ptr [0x112d754]
+                picks a name: pc\data  vs  e1:/pc/data
 
 ------------------------------------------------------------------------------
   function 007F0391   (2 locked)
-      007F03CD  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
-      007F045E  cmp-imm   jle   cmp dword ptr [0x112d754], 0       base IV
+      007F03CD  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a call: sub_00996150  vs  sub_008B4BB0
+      007F045E  cmp-imm   jle   base IV              cmp dword ptr [0x112d754], 0
+                picks a value: 80  vs  16
 
 ------------------------------------------------------------------------------
   function 007F0A80   (1 locked)
-      007F0AC0  cmp-imm   je    cmp dword ptr [0x112d754], 0       base IV
+      007F0AC0  cmp-imm   je    base IV              cmp dword ptr [0x112d754], 0
+                UNKNOWN - guards 15 bytes of inline code (float maths)
 
 ------------------------------------------------------------------------------
   function 007F16B0   (1 locked)
       strings: e2_int
-      007F16CB  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      007F16CB  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a value: sets 180, 350, 0.0059
 
 ------------------------------------------------------------------------------
   function 007F19D0   (2 locked)
-      007F19FD  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
-      007F1A3A  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+      007F19FD  cmp-imm   jl    TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: skips sub_007F07D0
+      007F1A3A  cmp-imm   jl    TBoGT                cmp dword ptr [0x112d754], 2
+                gates a block: calls sub_007F07D0
 
 ------------------------------------------------------------------------------
   function 007F1F40   (1 locked)
-      007F1F9A  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      007F1F9A  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a value: sets 0
+
+------------------------------------------------------------------------------
+  function 007F74EB   (3 locked)
+      007F7676  cmp-imm   jl    TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: runs sub_00984E60, sub_007F19D0
+      007F76C5  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: skips sub_007F0890, sub_007F0350
+      007F7738  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a value: sets 3.617, -0.19, 2.481
 
 ------------------------------------------------------------------------------
   function 0080FF1E   (1 locked)
-      0080FF50  cmp-reg   je    cmp dword ptr [0x112d754], ebx     TBoGT
+      0080FF50  cmp-reg   je    TBoGT                cmp dword ptr [0x112d754], ebx
+                gates a call: runs sub_007D6BF0, sub_0080F540
 
 ------------------------------------------------------------------------------
   function 00824770   (1 locked)
-      0082479F  cmp-imm   jne   cmp dword ptr [0x112d788], 1       TLAD
+      0082479F  cmp-imm   jne   TLAD                 cmp dword ptr [0x112d788], 1
+                picks a value: 4  vs  0
 
 ------------------------------------------------------------------------------
   function 00836095   (1 locked)
       strings: REVERB_WET_TO_SHOUTED_ECHO_VOLUME / BUILT_UP_TO_SHOUTED_ECHO_VOLUME / GLOBAL_SPEECH_ROLLOFF_%.2d / GLOBAL_SPEECH
-      0083614C  load-cmp  jne   mov eax, dword ptr [0x112d788]     TLAD
+      0083614C  load-cmp  jne   TLAD                 mov eax, dword ptr [0x112d788]
+                picks a value: 4.5  vs  1, -6, -5.5
 
 ------------------------------------------------------------------------------
   function 00837790   (1 locked)
-      00837790  cmp-imm   sete  cmp dword ptr [0x112d754], 2       TBoGT
+      00837790  cmp-imm   sete  TBoGT                cmp dword ptr [0x112d754], 2
+                gates a block: calls sub_007910B0
 
 ------------------------------------------------------------------------------
   function 0084A8E0   (1 locked, 1 already opened)
       strings: cj_cone / cj_cylinder / _ICON / CJ_ARROW_ICON / CJ_ARROW_ICON_2
       opened : 0084AA71  cmp dword ptr [0x112d788], 2       <- E2_Landing marker request model #3
-      0084A99E  load-cmp  -     mov eax, dword ptr [0x112d788]     TBoGT
+      0084A99E  load-cmp  -     TBoGT                mov eax, dword ptr [0x112d788]
+                UNKNOWN - episode read, branch not resolved; nearby: CJ_R_ICON_FLAG, P_e2_landing_marker
 
 ------------------------------------------------------------------------------
   function 00850EF0   (1 locked, 1 already opened)
       opened : 00850F03  cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (BUZZARD) weapon effects
-      00850F9E  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+      00850F9E  cmp-imm   jl    TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: skips sub_008DDEB0
 
 ------------------------------------------------------------------------------
   function 00852A90   (1 locked)
       strings: LINEAR_RISE / GENERAL_WEAPONS_NEARFIELD_ROCKET_LOOP_BUZZARD / GENERAL_WEAPONS_NEARFIELD_ROCKET_LOOP
-      008530FA  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      008530FA  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a value: 32  vs  64
 
 ------------------------------------------------------------------------------
   function 00856270   (2 locked)
       strings: Rockstar Games\GTA IV\ / Rockstar Games\TLaD\ / Rockstar Games\TBoGT\
-      0085628C  load-cmp  jne   mov eax, dword ptr [0x112d788]     value not resolved
-      0085633D  load-cmp  jne   mov eax, dword ptr [0x112d788]     value not resolved
+      0085628C  load-cmp  jne   value not resolved   mov eax, dword ptr [0x112d788]
+                gates a block: mentions Rockstar Games\TLaD\
+      0085633D  load-cmp  jne   value not resolved   mov eax, dword ptr [0x112d788]
+                UNKNOWN - guards 52 bytes of inline code (no calls or constants)
 
 ------------------------------------------------------------------------------
   function 00856C6C   (3 locked)
       strings: Rockstar Games\GTA IV\ / Rockstar Games\TLaD\ / Rockstar Games\TBoGT\ / Rockstar Games\RGSC\
-      00856CA7  load-cmp  jne   mov eax, dword ptr [0x112d788]     value not resolved
-      00856D42  load-cmp  jne   mov eax, dword ptr [0x112d788]     value not resolved
-      00856E40  load-cmp  jne   mov eax, dword ptr [0x112d788]     value not resolved
+      00856CA7  load-cmp  jne   value not resolved   mov eax, dword ptr [0x112d788]
+                gates a block: mentions Rockstar Games\TLaD\
+      00856D42  load-cmp  jne   value not resolved   mov eax, dword ptr [0x112d788]
+                gates a block: mentions Rockstar Games\TLaD\
+      00856E40  load-cmp  jne   value not resolved   mov eax, dword ptr [0x112d788]
+                UNKNOWN - guards 38 bytes of inline code (no calls or constants)
 
 ------------------------------------------------------------------------------
   function 00857C90   (1 locked)
       strings: EPISODE / ITBEG
-      00857CB9  load-cmp  jle   mov ebp, dword ptr [0x112d754]     base IV
+      00857CB9  load-cmp  jle   base IV              mov ebp, dword ptr [0x112d754]
+                picks a call: sub_00CF4E8C  vs  sub_008D7AB0
 
 ------------------------------------------------------------------------------
   function 0085B4A0   (1 locked)
-      0085B4FA  cmp-reg   je    cmp dword ptr [0x112d754], eax     value not resolved
+      0085B4FA  cmp-reg   je    value not resolved   cmp dword ptr [0x112d754], eax
+                gates a call: runs sub_0085A850
 
 ------------------------------------------------------------------------------
   function 0085C390   (1 locked)
-      0085C3E1  load-cmp  jle   mov eax, dword ptr [0x112d788]     base IV
+      0085C3E1  load-cmp  jle   base IV              mov eax, dword ptr [0x112d788]
+                gates a block: calls sub_0085A5F0, sub_00890460
 
 ------------------------------------------------------------------------------
   function 00861E50   (1 locked)
-      00862475  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+      00862475  cmp-imm   jne   TLAD                 cmp dword ptr [0x112d754], 1
+                picks a value: 0.4, 0.8  vs  1, 0.9
 
 ------------------------------------------------------------------------------
   function 0086A980   (1 locked)
       strings: common:/DATA/HUDCOLOR.DAT
-      0086AB57  load-cmp  jne   mov eax, dword ptr [0x112d788]     TLAD
+      0086AB57  load-cmp  jne   TLAD                 mov eax, dword ptr [0x112d788]
+                UNKNOWN - no conditional branch within 16 instructions
 
 ------------------------------------------------------------------------------
   function 0086B000   (1 locked)
-      0086B0B1  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      0086B0B1  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - guards 59 bytes of inline code (flag bits)
 
 ------------------------------------------------------------------------------
   function 0086B400   (2 locked)
-      0086B468  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
-      0086B4E9  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      0086B468  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: runs episodeIsReady?
+      0086B4E9  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a value: sets 1.7
 
 ------------------------------------------------------------------------------
   function 0086C3B0   (1 locked)
-      0086C3CD  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+      0086C3CD  cmp-imm   jl    TBoGT                cmp dword ptr [0x112d754], 2
+                gates a value: sets 0, 1
 
 ------------------------------------------------------------------------------
   function 0086DE70   (9 locked)
-      0086DEB1  cmp-reg   jne   cmp dword ptr [0x112d754], ebx     TBoGT
-      0086DF41  cmp-reg   jne   cmp dword ptr [0x112d754], ecx     value not resolved
-      0086E086  cmp-reg   jl    cmp dword ptr [0x112d754], ecx     value not resolved
-      0086E0B6  cmp-reg   jl    cmp dword ptr [0x112d754], ecx     value not resolved
-      0086E0E5  cmp-reg   jl    cmp dword ptr [0x112d754], ecx     value not resolved
-      0086E115  cmp-imm   je    cmp dword ptr [0x112d754], 0       base IV
-      0086E146  cmp-reg   jl    cmp dword ptr [0x112d754], ecx     value not resolved
-      0086E197  cmp-reg   jl    cmp dword ptr [0x112d754], ecx     value not resolved
-      0086E1C0  cmp-reg   jl    cmp dword ptr [0x112d754], ebx     value not resolved
+      0086DEB1  cmp-reg   jne   TBoGT                cmp dword ptr [0x112d754], ebx
+                gates a block: calls sub_00987E20, sub_008DDEB0
+      0086DF41  cmp-reg   jne   value not resolved   cmp dword ptr [0x112d754], ecx
+                gates a block: calls sub_0086A900
+      0086E086  cmp-reg   jl    value not resolved   cmp dword ptr [0x112d754], ecx
+                gates a block: calls sub_0086A900
+      0086E0B6  cmp-reg   jl    value not resolved   cmp dword ptr [0x112d754], ecx
+                gates a block: calls sub_0086A900
+      0086E0E5  cmp-reg   jl    value not resolved   cmp dword ptr [0x112d754], ecx
+                gates a block: calls sub_0086A900
+      0086E115  cmp-imm   je    base IV              cmp dword ptr [0x112d754], 0
+                gates a block: calls sub_0086A900
+      0086E146  cmp-reg   jl    value not resolved   cmp dword ptr [0x112d754], ecx
+                gates a block: calls sub_0086A900
+      0086E197  cmp-reg   jl    value not resolved   cmp dword ptr [0x112d754], ecx
+                gates a block: calls sub_0086A900
+      0086E1C0  cmp-reg   jl    value not resolved   cmp dword ptr [0x112d754], ebx
+                gates a block: calls sub_0086A900
 
 ------------------------------------------------------------------------------
   function 008705E7   (1 locked)
-      00870645  cmp-imm   je    cmp dword ptr [0x112d754], 0       base IV
+      00870645  cmp-imm   je    base IV              cmp dword ptr [0x112d754], 0
+                gates a call: runs sub_0086A940
+
+------------------------------------------------------------------------------
+  function 00872973   (1 locked)
+      00872B6A  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - branch body not a simple block (flag bits)
 
 ------------------------------------------------------------------------------
   function 00886030   (1 locked)
       strings: common:/DATA/FONTS.DAT / common:/DATA/FONTS_R.DAT / common:/DATA/FONTS_J.DAT / [BUTTONS] / [RADAR_BLIP]
-      00886236  cmp-imm   jne   cmp dword ptr [0x112d788], 2       TBoGT
+      00886236  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d788], 2
+                gates a block: calls sub_00856760, sub_00CF874F
 
 ------------------------------------------------------------------------------
   function 00887A70   (1 locked)
-      00887AAA  cmp-imm   jne   cmp dword ptr [0x112d788], 2       TBoGT
+      00887AAA  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d788], 2
+                picks a call: sub_0085CE80  vs  sub_0048EC10
 
 ------------------------------------------------------------------------------
   function 00887CCF   (1 locked)
       strings: font4 / RSTICK_ROTATE / streamedfont / platform:/textures/fonts_streamed_1 / font2
-      00887D29  cmp-imm   jne   cmp dword ptr [0x112d788], 2       TBoGT
+      00887D29  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d788], 2
+                picks a call: sub_0085DF40  vs  sub_0048ECD0
 
 ------------------------------------------------------------------------------
   function 0088BE51   (2 locked)
-      0088BEF8  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
-      0088BFBA  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+      0088BEF8  cmp-imm   jne   TLAD                 cmp dword ptr [0x112d754], 1
+                picks a value: 80  vs  48
+      0088BFBA  cmp-imm   jne   TLAD                 cmp dword ptr [0x112d754], 1
+                picks a call: sub_008AAEB0  vs  sub_0085CFE0, sub_0085D030
 
 ------------------------------------------------------------------------------
   function 008915E1   (1 locked)
-      00891687  load-cmp  jg    mov eax, dword ptr [0x112d754]     base IV
+      00891687  load-cmp  jg    base IV              mov eax, dword ptr [0x112d754]
+                gates a call: skips audEngine
 
 ------------------------------------------------------------------------------
   function 00894FD8   (1 locked)
       strings: common:/DATA/RadioLogo.DAT / [CRT]
-      00895011  cmp-imm   je    cmp dword ptr [0x112d788], 0       base IV
+      00895011  cmp-imm   je    base IV              cmp dword ptr [0x112d788], 0
+                picks a call: memory:  vs  sub_00856540
 
 ------------------------------------------------------------------------------
   function 008A1FB6   (18 locked)
-      008A1FDE  cmp-reg   je    cmp dword ptr [0x112d754], esi     value not resolved
-      008A1FE6  cmp-reg   je    cmp dword ptr [0x112d788], esi     value not resolved
-      008A213D  cmp-reg   je    cmp dword ptr [0x112d754], eax     TBoGT
-      008A2145  cmp-reg   jne   cmp dword ptr [0x112d788], eax     TBoGT
-      008A23DA  cmp-reg   je    cmp dword ptr [0x112d754], ebx     value not resolved
-      008A23F6  cmp-reg   je    cmp dword ptr [0x112d788], ebx     value not resolved
-      008A2512  cmp-reg   je    cmp dword ptr [0x112d754], ebx     value not resolved
-      008A251E  cmp-reg   je    cmp dword ptr [0x112d788], ebx     value not resolved
-      008A28EE  cmp-reg   je    cmp dword ptr [0x112d754], ebx     value not resolved
-      008A28F6  cmp-reg   je    cmp dword ptr [0x112d788], ebx     value not resolved
-      008A29B8  cmp-reg   je    cmp dword ptr [0x112d754], ebx     value not resolved
-      008A29C0  cmp-reg   jne   cmp dword ptr [0x112d788], ebx     value not resolved
-      008A2A6E  cmp-reg   je    cmp dword ptr [0x112d754], eax     TBoGT
-      008A2A98  cmp-reg   je    cmp dword ptr [0x112d788], eax     TBoGT
-      008A2B65  cmp-reg   je    cmp dword ptr [0x112d754], eax     TBoGT
-      008A2B6D  cmp-reg   jne   cmp dword ptr [0x112d788], eax     TBoGT
-      008A2BB0  cmp-reg   je    cmp dword ptr [0x112d754], ebx     TBoGT
-      008A2BB8  cmp-reg   jne   cmp dword ptr [0x112d788], ebx     TBoGT
+      008A1FDE  cmp-reg   je    value not resolved   cmp dword ptr [0x112d754], esi
+                gates a call: skips sub_008859A0
+      008A1FE6  cmp-reg   je    value not resolved   cmp dword ptr [0x112d788], esi
+                gates a call: skips sub_008859A0
+      008A213D  cmp-reg   je    TBoGT                cmp dword ptr [0x112d754], eax
+                gates a block: calls sub_00407600
+      008A2145  cmp-reg   jne   TBoGT                cmp dword ptr [0x112d788], eax
+                picks a call: sub_00407600  vs  sub_0089FB90
+      008A23DA  cmp-reg   je    value not resolved   cmp dword ptr [0x112d754], ebx
+                gates a value: sets 0
+      008A23F6  cmp-reg   je    value not resolved   cmp dword ptr [0x112d788], ebx
+                gates a block: calls sub_00407600
+      008A2512  cmp-reg   je    value not resolved   cmp dword ptr [0x112d754], ebx
+                gates a value: sets 0
+      008A251E  cmp-reg   je    value not resolved   cmp dword ptr [0x112d788], ebx
+                gates a value: sets 0
+      008A28EE  cmp-reg   je    value not resolved   cmp dword ptr [0x112d754], ebx
+                picks a value: 0.005  vs  0.085
+      008A28F6  cmp-reg   je    value not resolved   cmp dword ptr [0x112d788], ebx
+                picks a value: 0.005  vs  0.085
+      008A29B8  cmp-reg   je    value not resolved   cmp dword ptr [0x112d754], ebx
+                gates a block: calls sub_00873BE0
+      008A29C0  cmp-reg   jne   value not resolved   cmp dword ptr [0x112d788], ebx
+                picks a call: sub_00873BE0  vs  sub_0088AA60
+      008A2A6E  cmp-reg   je    TBoGT                cmp dword ptr [0x112d754], eax
+                gates a call: runs sub_00407600
+      008A2A98  cmp-reg   je    TBoGT                cmp dword ptr [0x112d788], eax
+                gates a call: runs sub_00407600
+      008A2B65  cmp-reg   je    TBoGT                cmp dword ptr [0x112d754], eax
+                gates a block: calls sub_0088AA60
+      008A2B6D  cmp-reg   jne   TBoGT                cmp dword ptr [0x112d788], eax
+                gates a value: sets 2
+      008A2BB0  cmp-reg   je    TBoGT                cmp dword ptr [0x112d754], ebx
+                UNKNOWN - guards 12 bytes of inline code (float maths)
+      008A2BB8  cmp-reg   jne   TBoGT                cmp dword ptr [0x112d788], ebx
+                gates a call: skips script_rt, sub_00873C10
 
 ------------------------------------------------------------------------------
   function 008AC440   (3 locked)
       strings: fff?
-      008AC685  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
-      008ACB7C  cmp-reg   jne   cmp dword ptr [0x112d754], ebx     value not resolved
-      008ACC70  cmp-reg   jne   cmp dword ptr [0x112d754], ebx     value not resolved
+      008AC685  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a call: sub_00475820  vs  sub_00885EF0
+      008ACB7C  cmp-reg   jne   value not resolved   cmp dword ptr [0x112d754], ebx
+                picks a value: 0.8  vs  -1e+06
+      008ACC70  cmp-reg   jne   value not resolved   cmp dword ptr [0x112d754], ebx
+                picks a call: sub_00885CA0  vs  sub_00885EC0, sub_0088BC20
 
 ------------------------------------------------------------------------------
   function 008ACE6D   (3 locked)
       strings: FRONTEND_OTHER_INFO
-      008AD0ED  load-cmp  jne   mov eax, dword ptr [0x112d754]     TBoGT
-      008AD2C9  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
-      008AD42F  cmp-reg   jne   cmp dword ptr [0x112d754], ebx     value not resolved
+      008AD0ED  load-cmp  jne   TBoGT                mov eax, dword ptr [0x112d754]
+                picks a value: 48  vs  80
+      008AD2C9  cmp-imm   jne   TLAD                 cmp dword ptr [0x112d754], 1
+                gates a call: skips sub_0085CFE0
+      008AD42F  cmp-reg   jne   value not resolved   cmp dword ptr [0x112d754], ebx
+                picks a call: sub_00475820  vs  sub_00885EF0, sub_00885DA0
 
 ------------------------------------------------------------------------------
   function 008AE650   (1 locked)
-      008AE776  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
+      008AE776  cmp-imm   jne   base IV              cmp dword ptr [0x112d754], 0
+                gates a block: calls sub_0096ED10, sub_0091EB70
 
 ------------------------------------------------------------------------------
   function 008B0B80   (1 locked)
-      008B0BA1  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+      008B0BA1  cmp-imm   jne   TLAD                 cmp dword ptr [0x112d754], 1
+                gates a call: runs sub_00890460
 
 ------------------------------------------------------------------------------
   function 008B15E0   (1 locked)
-      008B1623  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      008B1623  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a value: sets 1
 
 ------------------------------------------------------------------------------
   function 008B40F0   (1 locked)
-      008B410F  cmp-imm   jne   cmp dword ptr [0x112d788], 1       TLAD
+      008B410F  cmp-imm   jne   TLAD                 cmp dword ptr [0x112d788], 1
+                gates a call: runs sub_00890460
 
 ------------------------------------------------------------------------------
   function 008D9920   (2 locked)
-      008D9A89  load-cmp  -     mov ecx, dword ptr [0x112d754]     value not resolved
-      008D9A8F  cmp-reg   -     cmp ecx, dword ptr [0x112d788]     value not resolved
+      008D9A89  load-cmp  -     value not resolved   mov ecx, dword ptr [0x112d754]
+                UNKNOWN - episode read, branch not resolved; nearby: 0
+      008D9A8F  cmp-reg   -     value not resolved   cmp ecx, dword ptr [0x112d788]
+                UNKNOWN - episode read, branch not resolved; nearby: 0
 
 ------------------------------------------------------------------------------
   function 008DE100   (1 locked)
-      008DE1D1  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      008DE1D1  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: runs isNetworkGameRunning
 
 ------------------------------------------------------------------------------
   function 008DE220   (1 locked)
-      008DE284  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      008DE284  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: runs isNetworkGameRunning
 
 ------------------------------------------------------------------------------
   function 008DF0B0   (2 locked)
       strings: model
-      008DF191  cmp-imm   jge   cmp dword ptr [0x112d754], 1       TLAD
-      008DF19A  cmp-imm   jl    cmp dword ptr [0x112d788], 1       TLAD
+      008DF191  cmp-imm   jge   TLAD                 cmp dword ptr [0x112d754], 1
+                gates a block: calls sub_008DD2D0
+      008DF19A  cmp-imm   jl    TLAD                 cmp dword ptr [0x112d788], 1
+                gates a call: runs sub_008DD2D0
 
 ------------------------------------------------------------------------------
   function 008E7C50   (1 locked)
-      008E7C5C  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+      008E7C5C  cmp-imm   jl    TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - guards 135 bytes of inline code (flag bits)
 
 ------------------------------------------------------------------------------
   function 008E8C40   (1 locked)
-      008E8D17  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+      008E8D17  cmp-imm   jl    TBoGT                cmp dword ptr [0x112d754], 2
+                picks a call: sub_00850E50  vs  isNetworkGameRunning
 
 ------------------------------------------------------------------------------
   function 008EF650   (1 locked)
-      008EF659  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      008EF659  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: runs sub_007CD230
 
 ------------------------------------------------------------------------------
   function 008FE960   (2 locked)
-      008FEC0C  cmp-reg   jl    cmp dword ptr [0x112d754], edi     TBoGT
-      008FEC40  cmp-reg   jl    cmp dword ptr [0x112d754], edi     TBoGT
+      008FEC0C  cmp-reg   jl    TBoGT                cmp dword ptr [0x112d754], edi
+                UNKNOWN - guards 24 bytes of inline code (no calls or constants)
+      008FEC40  cmp-reg   jl    TBoGT                cmp dword ptr [0x112d754], edi
+                UNKNOWN - guards 24 bytes of inline code (no calls or constants)
 
 ------------------------------------------------------------------------------
   function 008FFAD3   (1 locked)
-      008FFC44  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+      008FFC44  cmp-imm   jl    TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: runs sub_006DB8E0
+
+------------------------------------------------------------------------------
+  function 0090A2FF   (1 locked)
+      0090A30F  cmp-imm   jl    TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: runs sub_004ACE70
 
 ------------------------------------------------------------------------------
   function 00931360   (1 locked)
-      0093138E  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+      0093138E  cmp-imm   jne   UNSHIPPED EPISODE 3  cmp dword ptr [0x112d754], 3
+                picks a call: isNetworkGameRunning, sub_009306B0  vs  sub_00BEB5F0
 
 ------------------------------------------------------------------------------
   function 00931480   (1 locked)
-      009314D0  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+      009314D0  cmp-imm   jne   UNSHIPPED EPISODE 3  cmp dword ptr [0x112d754], 3
+                gates a call: runs isNetworkGameRunning, sub_009306B0
 
 ------------------------------------------------------------------------------
   function 00932520   (1 locked)
-      00932526  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+      00932526  cmp-imm   jne   UNSHIPPED EPISODE 3  cmp dword ptr [0x112d754], 3
+                picks a call: isNetworkGameRunning, sub_008B4D60  vs  sub_00A40A10, sub_00A3E000
 
 ------------------------------------------------------------------------------
   function 009325E8   (1 locked)
-      009326A0  cmp-reg   jne   cmp dword ptr [0x112d788], ebx     TLAD
+      009326A0  cmp-reg   jne   TLAD                 cmp dword ptr [0x112d788], ebx
+                gates a block: calls sub_00930420
 
 ------------------------------------------------------------------------------
   function 009381D0   (1 locked)
-      009382A1  cmp-imm   jge   cmp dword ptr [0x112d754], 2       TBoGT
+      009382A1  cmp-imm   jge   TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - guards 99 bytes of inline code (float maths)
 
 ------------------------------------------------------------------------------
   function 0093B810   (1 locked)
-      0093B82C  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      0093B82C  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: runs isNetworkGameRunning
 
 ------------------------------------------------------------------------------
   function 009405FF   (1 locked)
-      009406C6  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      009406C6  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: skips isNetworkGameRunning, sub_004AD100
 
 ------------------------------------------------------------------------------
   function 00944300   (1 locked)
       strings: amb@payphone
-      00944509  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00944509  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: skips isPlayer
 
 ------------------------------------------------------------------------------
   function 0094BBB0   (1 locked)
-      0094BBBD  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+      0094BBBD  cmp-imm   jne   UNSHIPPED EPISODE 3  cmp dword ptr [0x112d754], 3
+                picks a call: isNetworkGameRunning, sub_00BEB720  vs  RMN50, sub_008AED70
 
 ------------------------------------------------------------------------------
   function 009502A0   (1 locked)
-      009503B8  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+      009503B8  cmp-imm   jne   TLAD                 cmp dword ptr [0x112d754], 1
+                gates a call: skips sub_00906770
 
 ------------------------------------------------------------------------------
   function 00969260   (1 locked)
-      0096933B  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+      0096933B  cmp-imm   jl    TBoGT                cmp dword ptr [0x112d754], 2
+                gates a block: calls sub_00968BD0
 
 ------------------------------------------------------------------------------
   function 00988A80   (1 locked)
-      00988AE5  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00988AE5  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - guards 18 bytes of inline code (no calls or constants)
 
 ------------------------------------------------------------------------------
   function 00988BE0   (1 locked)
-      00988C2E  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+      00988C2E  cmp-imm   jl    TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: skips sub_00491430, sub_00988B50
 
 ------------------------------------------------------------------------------
   function 00989100   (1 locked)
       strings: fff>
-      009891ED  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      009891ED  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a value: sets 0.65
 
 ------------------------------------------------------------------------------
   function 00989CB0   (1 locked)
-      00989CEE  cmp-imm   jne   cmp dword ptr [0x112d788], 1       TLAD
+      00989CEE  cmp-imm   jne   TLAD                 cmp dword ptr [0x112d788], 1
+                picks a call: sub_00890460  vs  sub_00988E10
 
 ------------------------------------------------------------------------------
   function 0098A480   (1 locked)
-      0098A535  cmp-reg   jne   cmp dword ptr [0x112d754], edi     value not resolved
+      0098A535  cmp-reg   jne   value not resolved   cmp dword ptr [0x112d754], edi
+                picks a call: sub_00890460  vs  sub_00989B90
+
+------------------------------------------------------------------------------
+  function 0098A736   (1 locked, 1 already opened)
+      opened : 0098AC20  cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (APC) #7
+      0098A963  cmp-imm   jne   TLAD                 cmp dword ptr [0x112d754], 1
+                picks a name: PU_SEADONE  vs  PU_SEADONEE2
 
 ------------------------------------------------------------------------------
   function 0098CE20   (1 locked)
-      0098CF03  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      0098CF03  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: runs isNetworkGameRunning
 
 ------------------------------------------------------------------------------
   function 009916F0   (3 locked)
       strings: BUTTOCKS / ON_FIRE
-      0099176C  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
-      00991B57  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
-      00991CE5  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      0099176C  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: runs isNetworkGameRunning
+      00991B57  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a call: isPlayer, sub_008AE3E0  vs  sub_00C7F380
+      00991CE5  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: skips sub_00C7F380
 
 ------------------------------------------------------------------------------
   function 009937A0   (1 locked)
-      00993B38  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00993B38  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a call: sub_0041A340, sub_00C7F310  vs  sub_00B4A710, sub_004E4710
 
 ------------------------------------------------------------------------------
   function 009968A0   (1 locked)
-      00996918  cmp-imm   -     cmp dword ptr [0x112d754], 2       TBoGT
+      00996918  cmp-imm   -     TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - episode read, branch not resolved
 
 ------------------------------------------------------------------------------
   function 009982F0   (2 locked)
-      009982F9  cmp-imm   -     cmp dword ptr [0x112d754], 2       TBoGT
-      009983BE  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      009982F9  cmp-imm   -     TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - episode read, branch not resolved; nearby: isNetworkGameRunning
+      009983BE  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: runs sub_0093B580
 
 ------------------------------------------------------------------------------
   function 00998880   (1 locked)
-      009988FC  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+      009988FC  cmp-imm   jl    TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - guards 16 bytes of inline code (flag bits)
 
 ------------------------------------------------------------------------------
   function 0099A910   (1 locked)
-      0099A942  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      0099A942  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a block: calls isNetworkGameRunning
 
 ------------------------------------------------------------------------------
   function 0099AB00   (1 locked)
-      0099AB2B  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      0099AB2B  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: runs isNetworkGameRunning
 
 ------------------------------------------------------------------------------
   function 0099E730   (1 locked)
-      0099E73C  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      0099E73C  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: skips sub_00456DA0
 
 ------------------------------------------------------------------------------
   function 0099EFA0   (1 locked)
-      0099EFAF  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      0099EFAF  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a value: sets -424.7, -440, 356
 
 ------------------------------------------------------------------------------
   function 009A0990   (1 locked)
-      009A0990  cmp-imm   je    cmp dword ptr [0x112d754], 2       TBoGT
+      009A0990  cmp-imm   je    TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - guards 5 bytes of inline code (no calls or constants)
 
 ------------------------------------------------------------------------------
   function 009A1800   (1 locked)
-      009A1800  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      009A1800  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - guards 135 bytes of inline code (no calls or constants)
 
 ------------------------------------------------------------------------------
   function 009A2CF0   (1 locked)
-      009A2CFE  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      009A2CFE  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a call: sub_008D79A0, sub_008D79E0  vs  sub_00CF4E7D
 
 ------------------------------------------------------------------------------
   function 009A6500   (1 locked)
       strings: CHEAT1 / ACHBLOCKED1B / ACHBLOCKED1C / ACHBLOCKED1E / ACHBLOCKED1F
-      009A654E  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
+      009A654E  cmp-imm   jne   base IV              cmp dword ptr [0x112d754], 0
+                UNKNOWN - branch body not a simple block (no calls or constants)
 
 ------------------------------------------------------------------------------
   function 009A6AA0   (1 locked)
-      009A6AA6  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      009A6AA6  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a block: calls sub_008DDEB0, sub_008DE150
 
 ------------------------------------------------------------------------------
   function 009B2BE0   (4 locked)
-      009B2D2F  cmp-reg   setne cmp dword ptr [0x112d754], edi     value not resolved
-      009B2DF9  cmp-imm   setne cmp dword ptr [0x112d754], 2       TBoGT
-      009B2E20  cmp-imm   setne cmp dword ptr [0x112d754], 2       TBoGT
-      009B2E3F  cmp-imm   setne cmp dword ptr [0x112d754], 2       TBoGT
+      009B2D2F  cmp-reg   setne value not resolved   cmp dword ptr [0x112d754], edi
+                gates a call: skips sub_00947E30, sub_0094BBB0
+      009B2DF9  cmp-imm   setne TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - no conditional branch within 10 instructions
+      009B2E20  cmp-imm   setne TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - no conditional branch within 10 instructions
+      009B2E3F  cmp-imm   setne TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - no conditional branch within 10 instructions
 
 ------------------------------------------------------------------------------
   function 009B72D0   (1 locked)
-      009B734A  cmp-reg   jne   cmp dword ptr [0x112d754], ecx     TLAD
+      009B734A  cmp-reg   jne   TLAD                 cmp dword ptr [0x112d754], ecx
+                gates a call: runs isNetworkGameRunning
 
 ------------------------------------------------------------------------------
   function 009BDB10   (2 locked)
-      009BDBC8  load-cmp  jne   mov eax, dword ptr [0x112d754]     UNSHIPPED EPISODE 3
-      009BDF30  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+      009BDBC8  load-cmp  jne   UNSHIPPED EPISODE 3  mov eax, dword ptr [0x112d754]
+                UNKNOWN - guards 9 bytes of inline code (float maths)
+      009BDF30  cmp-imm   jne   UNSHIPPED EPISODE 3  cmp dword ptr [0x112d754], 3
+                UNKNOWN - guards 14 bytes of inline code (field writes)
 
 ------------------------------------------------------------------------------
   function 009C91C0   (2 locked)
-      009C91F8  cmp-imm   jge   cmp dword ptr [0x112d754], 2       TBoGT
-      009C92D6  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+      009C91F8  cmp-imm   jge   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: runs sub_004A3DD0, sub_00850E50
+      009C92D6  cmp-imm   jl    TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: runs sub_004A3DD0, sub_00850E50
 
 ------------------------------------------------------------------------------
   function 009CE171   (1 locked)
-      009CE21E  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      009CE21E  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: skips sub_008E6CC0
 
 ------------------------------------------------------------------------------
   function 009CE870   (1 locked)
-      009CE9D2  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      009CE9D2  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: runs isNetworkGameRunning
 
 ------------------------------------------------------------------------------
   function 009D0190   (1 locked)
-      009D0488  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      009D0488  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a call: sub_008E8070  vs  sub_00906770
 
 ------------------------------------------------------------------------------
   function 009D0B80   (1 locked, 1 already opened)
       opened : 009D0BD0  cmp dword ptr [0x112d754], 2       <- Sticky bomb
-      009D0D0B  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      009D0D0B  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a call: isNetworkGameRunning  vs  sub_00AB28C0, sub_00910B90
 
 ------------------------------------------------------------------------------
   function 009D1EDF   (1 locked)
-      009D1F52  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      009D1F52  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a call: isNetworkGameRunning, isPlayer  vs  sub_00CF8AE2
 
 ------------------------------------------------------------------------------
   function 009D3670   (1 locked)
       strings: HitReaction / none
-      009D3B79  load-cmp  jne   mov eax, dword ptr [0x112d754]     TLAD
+      009D3B79  load-cmp  jne   TLAD                 mov eax, dword ptr [0x112d754]
+                UNKNOWN - guards 35 bytes of inline code (no calls or constants)
 
 ------------------------------------------------------------------------------
   function 009D5D50   (2 locked)
-      009D62E8  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
-      009D6353  cmp-reg   jne   cmp dword ptr [0x112d754], eax     value not resolved
+      009D62E8  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: runs isNetworkGameRunning
+      009D6353  cmp-reg   jne   value not resolved   cmp dword ptr [0x112d754], eax
+                gates a call: runs isNetworkGameRunning
 
 ------------------------------------------------------------------------------
   function 009DD3D0   (2 locked)
-      009DD427  load-cmp  je    mov eax, dword ptr [0x112d788]     value not resolved
-      009DD48E  cmp-reg   jne   cmp dword ptr [0x112d754], ebx     value not resolved
+      009DD427  load-cmp  je    value not resolved   mov eax, dword ptr [0x112d788]
+                gates a call: skips sub_009DD3A0
+      009DD48E  cmp-reg   jne   value not resolved   cmp dword ptr [0x112d754], ebx
+                gates a block: calls sub_0084FC90, sub_008479C0
 
 ------------------------------------------------------------------------------
   function 009E681E   (1 locked)
       strings: speed
-      009E6A8E  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      009E6A8E  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a value: sets 1.2
+
+------------------------------------------------------------------------------
+  function 009E6D53   (1 locked)
+      009E6E1A  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a value: sets 1.2
+
+------------------------------------------------------------------------------
+  function 009F4414   (1 locked)
+      009F441D  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: skips sub_009F1ED0
 
 ------------------------------------------------------------------------------
   function 009FAD50   (1 locked)
-      009FAF5E  load-cmp  je    mov eax, dword ptr [0x112d754]     TLAD
+      009FAF5E  load-cmp  je    TLAD                 mov eax, dword ptr [0x112d754]
+                UNKNOWN - guards 5 bytes of inline code (flag bits)
 
 ------------------------------------------------------------------------------
   function 009FC602   (1 locked)
-      009FCC08  load-cmp  je    mov eax, dword ptr [0x112d754]     TLAD
+      009FCC08  load-cmp  je    TLAD                 mov eax, dword ptr [0x112d754]
+                UNKNOWN - guards 5 bytes of inline code (flag bits)
 
 ------------------------------------------------------------------------------
   function 00A35250   (1 locked)
       strings: open_cred.srl
-      00A3526F  cmp-imm   jne   cmp dword ptr [0x112d788], 1       TLAD
+      00A3526F  cmp-imm   jne   TLAD                 cmp dword ptr [0x112d788], 1
+                picks a call: sub_00CF7C50, sub_0096EAC0  vs  sub_00856540
 
 ------------------------------------------------------------------------------
   function 00A503E0   (1 locked)
-      00A504DA  cmp-imm   je    cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+      00A504DA  cmp-imm   je    UNSHIPPED EPISODE 3  cmp dword ptr [0x112d754], 3
+                gates a block: calls sub_00A50390, sub_009B2580
 
 ------------------------------------------------------------------------------
   function 00A5A580   (1 locked)
-      00A5A63E  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00A5A63E  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: runs sub_009CBC30, sub_008DDEB0
 
 ------------------------------------------------------------------------------
   function 00A5BEE0   (1 locked)
-      00A5C130  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+      00A5C130  cmp-imm   jl    TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: skips sub_00914330
 
 ------------------------------------------------------------------------------
   function 00A5E098   (1 locked)
-      00A5E0DF  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00A5E0DF  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a call: sub_00C082D0  vs  sub_00C07670, sub_00C07470
+
+------------------------------------------------------------------------------
+  function 00A5E831   (1 locked)
+      00A5E856  cmp-imm   jne   TLAD                 cmp dword ptr [0x112d754], 1
+                picks a call: sub_008DDEB0  vs  sub_0049F3A0
 
 ------------------------------------------------------------------------------
   function 00A602D5   (1 locked)
-      00A607C6  cmp-imm   jge   cmp dword ptr [0x112d754], 2       TBoGT
+      00A607C6  cmp-imm   jge   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a call: sub_009CBC30, sub_0084FEF0  vs  sub_00997820, sub_00997880
 
 ------------------------------------------------------------------------------
   function 00A608C0   (1 locked)
-      00A6094B  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00A6094B  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a block: calls sub_00A5A580, sub_009CBC30
 
 ------------------------------------------------------------------------------
   function 00A61140   (1 locked)
-      00A61140  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00A61140  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a block: calls sub_00A60230, sub_00A5A430
 
 ------------------------------------------------------------------------------
   function 00A61E06   (1 locked)
-      00A61EA0  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+      00A61EA0  cmp-imm   jl    TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: skips sub_00914330
 
 ------------------------------------------------------------------------------
   function 00A63850   (1 locked)
-      00A638A7  cmp-reg   jne   cmp dword ptr [0x112d754], edi     TBoGT
+      00A638A7  cmp-reg   jne   TBoGT                cmp dword ptr [0x112d754], edi
+                gates a block: calls sub_00939BB0
 
 ------------------------------------------------------------------------------
   function 00A73430   (1 locked)
-      00A73430  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00A73430  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: runs sub_00A71390
 
 ------------------------------------------------------------------------------
   function 00A76440   (1 locked)
-      00A76499  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00A76499  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: skips sub_00A99090, sub_009DE8E0
 
 ------------------------------------------------------------------------------
   function 00A79B50   (2 locked)
-      00A79B7F  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
-      00A79B9D  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00A79B7F  cmp-imm   jne   TLAD                 cmp dword ptr [0x112d754], 1
+                UNKNOWN - guards 6 bytes of inline code (field writes)
+      00A79B9D  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - guards 6 bytes of inline code (field writes)
 
 ------------------------------------------------------------------------------
   function 00A79F2E   (1 locked)
-      00A79F7F  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+      00A79F7F  cmp-imm   jl    TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - guards 9 bytes of inline code (flag bits)
 
 ------------------------------------------------------------------------------
   function 00A7BF60   (1 locked)
-      00A7BFA9  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00A7BFA9  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: runs sub_0041A340
 
 ------------------------------------------------------------------------------
   function 00A7C8E0   (1 locked)
-      00A7C942  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00A7C942  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a value: 13.5  vs  20
 
 ------------------------------------------------------------------------------
   function 00A80C74   (1 locked)
-      00A80DC7  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+      00A80DC7  cmp-imm   jl    TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - guards 9 bytes of inline code (float maths, field writes, flag bits)
 
 ------------------------------------------------------------------------------
   function 00A842A7   (1 locked)
-      00A842F7  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+      00A842F7  cmp-imm   jne   TLAD                 cmp dword ptr [0x112d754], 1
+                gates a value: sets -1600
 
 ------------------------------------------------------------------------------
   function 00A85E10   (1 locked)
-      00A85EC8  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+      00A85EC8  cmp-imm   jl    TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: skips sub_00922B00
 
 ------------------------------------------------------------------------------
   function 00A996B1   (1 locked)
-      00A996BB  cmp-imm   -     cmp dword ptr [0x112d754], 2       TBoGT
+      00A996BB  cmp-imm   -     TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - episode read, branch not resolved
 
 ------------------------------------------------------------------------------
   function 00A9B64A   (2 locked)
-      00A9B6DE  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
-      00A9B948  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00A9B6DE  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - guards 9 bytes of inline code (field writes)
+      00A9B948  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a value: sets 45
+
+------------------------------------------------------------------------------
+  function 00A9DAC1   (1 locked)
+      00A9DB02  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a value: sets 0
 
 ------------------------------------------------------------------------------
   function 00A9F490   (1 locked)
-      00A9F533  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+      00A9F533  cmp-imm   jne   TLAD                 cmp dword ptr [0x112d754], 1
+                picks a value: 0.515  vs  0.46
 
 ------------------------------------------------------------------------------
   function 00AA2CB1   (1 locked)
-      00AA3110  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+      00AA3110  cmp-imm   jne   TLAD                 cmp dword ptr [0x112d754], 1
+                gates a call: runs sub_00475970
 
 ------------------------------------------------------------------------------
   function 00AA6380   (1 locked)
-      00AA65BF  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00AA65BF  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a call: isNetworkGameRunning  vs  sub_00A33E80, sub_00A32760
 
 ------------------------------------------------------------------------------
   function 00AAE9EC   (1 locked)
       strings: ff&?basic_string
-      00AAEEC5  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+      00AAEEC5  cmp-imm   jl    TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: runs sub_004A3C00, sub_008DDEB0
 
 ------------------------------------------------------------------------------
   function 00AB2640   (1 locked)
       strings: GANG_WEAPON_WARNING
-      00AB2643  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+      00AB2643  cmp-imm   jne   TLAD                 cmp dword ptr [0x112d754], 1
+                gates a block: calls sub_00844E90
 
 ------------------------------------------------------------------------------
   function 00AB31F0   (1 locked)
       strings: fff?
-      00AB32DB  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+      00AB32DB  cmp-imm   jne   TLAD                 cmp dword ptr [0x112d754], 1
+                gates a value: sets 0.66
 
 ------------------------------------------------------------------------------
   function 00AB3EC0   (1 locked)
       strings: OVER_HANDLEBARS
-      00AB3FA5  cmp-reg   jl    cmp dword ptr [0x112d754], ebx     value not resolved
+      00AB3FA5  cmp-reg   jl    value not resolved   cmp dword ptr [0x112d754], ebx
+                picks a value: 0.35  vs  0.7, 1.5, -0.5
 
 ------------------------------------------------------------------------------
   function 00ACD080   (1 locked)
-      00ACD080  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+      00ACD080  cmp-imm   jne   UNSHIPPED EPISODE 3  cmp dword ptr [0x112d754], 3
+                gates a call: runs episodeIsReady?
 
 ------------------------------------------------------------------------------
   function 00AD2AD0   (1 locked)
-      00AD2B0B  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+      00AD2B0B  cmp-imm   jl    TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - guards 7 bytes of inline code (float maths, flag bits)
+
+------------------------------------------------------------------------------
+  function 00AE73AE   (1 locked)
+      00AE75DF  cmp-imm   je    TBoGT                cmp dword ptr [0x112d754], 2
+                picks a value: 66  vs  71
 
 ------------------------------------------------------------------------------
   function 00AE7B31   (2 locked)
-      00AE7EA0  cmp-reg   jge   cmp dword ptr [0x112d788], eax     TBoGT
-      00AE7EA8  cmp-reg   jge   cmp dword ptr [0x112d754], eax     TBoGT
+      00AE7EA0  cmp-reg   jge   TBoGT                cmp dword ptr [0x112d788], eax
+                gates a block: calls sub_00CF4E7D
+      00AE7EA8  cmp-reg   jge   TBoGT                cmp dword ptr [0x112d754], eax
+                gates a block: calls sub_00CF4E7D
 
 ------------------------------------------------------------------------------
   function 00AEFB90   (1 locked)
       strings: common:/DATA/CREDITS_PC.DAT / common:/DATA/CREDITS.DAT
-      00AEFB9A  cmp-reg   jle   cmp dword ptr [0x112d754], ebx     value not resolved
+      00AEFB9A  cmp-reg   jle   value not resolved   cmp dword ptr [0x112d754], ebx
+                picks a name: common:/DATA/CREDITS_PC.DAT  vs  common:/DATA/CREDITS.DAT
 
 ------------------------------------------------------------------------------
   function 00AF0450   (2 locked, 1 already opened)
       strings: water_boat_propellor_e2 / water_boat_propellor / speed / depth / reverse
       opened : 00AF0714  cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport Boat models #1
-      00AF04EB  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
-      00AF0785  cmp-imm   -     cmp dword ptr [0x112d754], 2       TBoGT
+      00AF04EB  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a name: water_boat_propellor_e2  vs  water_boat_propellor
+      00AF0785  cmp-imm   -     TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - episode read, branch not resolved
 
 ------------------------------------------------------------------------------
   function 00AF2F50   (2 locked, 1 already opened)
       strings: water_boat_bow_e2 / water_boat_rev_e2 / water_boat_bow / water_boat_rev / speed
       opened : 00AF330C  cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport Boat models #2
-      00AF2FA8  cmp-imm   -     cmp dword ptr [0x112d754], 2       TBoGT
-      00AF3358  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00AF2FA8  cmp-imm   -     TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - episode read, branch not resolved; nearby: 2
+      00AF3358  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - guards 71 bytes of inline code (flag bits)
 
 ------------------------------------------------------------------------------
   function 00AF3388   (2 locked, 1 already opened)
       strings: water_boat_rev_e2 / water_boat_bow / water_boat_rev / water_boat_wash_e2 / water_boat_wash
       opened : 00AF3686  cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport Boat models #2
-      00AF3472  cmp-imm   -     cmp dword ptr [0x112d754], 2       TBoGT
-      00AF36D2  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00AF3472  cmp-imm   -     TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - episode read, branch not resolved
+      00AF36D2  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a name: water_boat_wash_e2  vs  water_boat_wash
 
 ------------------------------------------------------------------------------
   function 00AF3740   (2 locked, 1 already opened)
       strings: water_boat_entry_e2 / water_boat_entry / speed / fff?
       opened : 00AF3938  cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport Boat models #4
-      00AF3792  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
-      00AF397C  cmp-imm   -     cmp dword ptr [0x112d754], 2       TBoGT
+      00AF3792  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a name: water_boat_entry_e2  vs  water_boat_entry
+      00AF397C  cmp-imm   -     TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - episode read, branch not resolved
 
 ------------------------------------------------------------------------------
   function 00AF7F50   (1 locked)
-      00AF7F65  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00AF7F65  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - guards 16 bytes of inline code (no calls or constants)
 
 ------------------------------------------------------------------------------
   function 00B14190   (1 locked)
-      00B14228  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+      00B14228  cmp-imm   jl    TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: runs sub_009CBEF0, sub_008DDEB0
 
 ------------------------------------------------------------------------------
   function 00B1D870   (1 locked)
-      00B1D8CB  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00B1D8CB  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a value: sets 1000
 
 ------------------------------------------------------------------------------
   function 00B20E80   (1 locked)
-      00B20EB7  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00B20EB7  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a value: sets 1000
 
 ------------------------------------------------------------------------------
   function 00B39E00   (1 locked)
-      00B39E26  load-cmp  jne   mov eax, dword ptr [0x112d754]     UNSHIPPED EPISODE 3
+      00B39E26  load-cmp  jne   UNSHIPPED EPISODE 3  mov eax, dword ptr [0x112d754]
+                UNKNOWN - guards 7 bytes of inline code (no calls or constants)
 
 ------------------------------------------------------------------------------
   function 00B39E90   (1 locked)
-      00B39E93  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+      00B39E93  cmp-imm   jne   UNSHIPPED EPISODE 3  cmp dword ptr [0x112d754], 3
+                UNKNOWN - guards 160 bytes of inline code (no calls or constants)
 
 ------------------------------------------------------------------------------
   function 00B432D0   (1 locked)
-      00B43301  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+      00B43301  cmp-imm   jne   UNSHIPPED EPISODE 3  cmp dword ptr [0x112d754], 3
+                gates a call: runs sub_00498D30, sub_00498D50
 
 ------------------------------------------------------------------------------
   function 00B70660   (2 locked)
       strings: common:/data/default.dat / update:/update.img
-      00B706B7  cmp-reg   jne   cmp dword ptr [0x112d788], esi     TBoGT
-      00B7071B  cmp-reg   jne   cmp dword ptr [0x112d788], esi     value not resolved
+      00B706B7  cmp-reg   jne   TBoGT                cmp dword ptr [0x112d788], esi
+                picks a call: EXIT  vs  sub_00A22BE0
+      00B7071B  cmp-reg   jne   value not resolved   cmp dword ptr [0x112d788], esi
+                picks a value: 1  vs  0
 
 ------------------------------------------------------------------------------
   function 00B957F0   (1 locked)
-      00B95A68  cmp-reg   jl    cmp dword ptr [0x112d754], ecx     TBoGT
+      00B95A68  cmp-reg   jl    TBoGT                cmp dword ptr [0x112d754], ecx
+                UNKNOWN - guards 27 bytes of inline code (flag bits)
 
 ------------------------------------------------------------------------------
   function 00B96940   (1 locked)
-      00B969BC  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+      00B969BC  cmp-imm   jl    TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: runs sub_00BC7750
 
 ------------------------------------------------------------------------------
   function 00B96EA0   (1 locked)
-      00B96EAD  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00B96EAD  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: skips sub_008DDEB0
 
 ------------------------------------------------------------------------------
   function 00B9F7E0   (1 locked)
-      00B9F81F  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+      00B9F81F  cmp-imm   jl    TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: skips sub_008DDEB0
 
 ------------------------------------------------------------------------------
   function 00BA0261   (1 locked)
-      00BA0335  load-cmp  jne   mov eax, dword ptr [0x112d754]     TBoGT
+      00BA0335  load-cmp  jne   TBoGT                mov eax, dword ptr [0x112d754]
+                UNKNOWN - guards 13 bytes of inline code (no calls or constants)
 
 ------------------------------------------------------------------------------
   function 00BA0FD7   (1 locked)
-      00BA1000  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00BA1000  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - guards 20 bytes of inline code (float maths, flag bits)
 
 ------------------------------------------------------------------------------
   function 00BAEE10   (1 locked)
       strings: GREET_JOHNNY
-      00BAEE19  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+      00BAEE19  cmp-imm   jne   TLAD                 cmp dword ptr [0x112d754], 1
+                gates a call: runs sub_007CD230
 
 ------------------------------------------------------------------------------
   function 00BB4ED5   (1 locked)
-      00BB4F40  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+      00BB4F40  cmp-imm   jne   TLAD                 cmp dword ptr [0x112d754], 1
+                UNKNOWN - guards 36 bytes of inline code (flag bits)
 
 ------------------------------------------------------------------------------
   function 00BB8920   (1 locked)
-      00BB8A9A  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+      00BB8A9A  cmp-imm   jne   TLAD                 cmp dword ptr [0x112d754], 1
+                picks a value: 8, 1  vs  55, 0.0008
 
 ------------------------------------------------------------------------------
   function 00BBC700   (1 locked)
-      00BBC7BC  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00BBC7BC  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a call: isPlayer, sub_00C7D520  vs  sub_008D71C0
 
 ------------------------------------------------------------------------------
   function 00BBE470   (1 locked)
-      00BBE51D  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00BBE51D  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - guards 19 bytes of inline code (field writes, flag bits)
 
 ------------------------------------------------------------------------------
   function 00BC5F30   (1 locked)
-      00BC60FA  cmp-reg   jl    cmp dword ptr [0x112d754], ecx     TBoGT
+      00BC60FA  cmp-reg   jl    TBoGT                cmp dword ptr [0x112d754], ecx
+                gates a call: runs sub_00C7A8F0
 
 ------------------------------------------------------------------------------
   function 00BCB8B0   (1 locked, 1 already opened)
       strings: still / veh@bike_freeway
       opened : 00BCB925  cmp dword ptr [0x112d754], eax     <- BikeFeetFix
-      00BCBC07  cmp-imm   jl    cmp dword ptr [0x112d754], 1       TLAD
+      00BCBC07  cmp-imm   jl    TLAD                 cmp dword ptr [0x112d754], 1
+                gates a value: sets 0.25, 0
 
 ------------------------------------------------------------------------------
   function 00BDC13D   (1 locked)
-      00BDC47C  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00BDC47C  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: skips sub_00475BF0
 
 ------------------------------------------------------------------------------
   function 00BE99B0   (1 locked)
       strings: fff?
-      00BE9A8F  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00BE9A8F  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a call: sub_0094C2D0  vs  sub_00B8C420
 
 ------------------------------------------------------------------------------
   function 00BF24D0   (2 locked)
-      00BF2602  cmp-imm   jge   cmp dword ptr [0x112d754], 2       TBoGT
-      00BF2672  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+      00BF2602  cmp-imm   jge   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: runs sub_00A985C0
+      00BF2672  cmp-imm   jl    TBoGT                cmp dword ptr [0x112d754], 2
+                picks a call: sub_00A985C0  vs  sub_0093A520
 
 ------------------------------------------------------------------------------
   function 00BF3A60   (1 locked)
-      00BF3A82  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+      00BF3A82  cmp-imm   jl    TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - guards 9 bytes of inline code (flag bits)
 
 ------------------------------------------------------------------------------
   function 00C0EC80   (1 locked)
-      00C0ECC8  cmp-imm   jle   cmp dword ptr [0x112d754], 0       base IV
+      00C0ECC8  cmp-imm   jle   base IV              cmp dword ptr [0x112d754], 0
+                gates a call: runs sub_00C0CEB0
 
 ------------------------------------------------------------------------------
   function 00C104E0   (1 locked)
-      00C104E0  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00C104E0  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: runs isNetworkGameRunning
 
 ------------------------------------------------------------------------------
   function 00C11620   (1 locked)
-      00C116E2  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00C116E2  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a call: sub_00A315B0, sub_008B4D60  vs  sub_00C8D5A0, sub_00C0EEB0
 
 ------------------------------------------------------------------------------
   function 00C1A9A1   (1 locked)
-      00C1A9B2  cmp-reg   jne   cmp dword ptr [0x112d754], ebx     TBoGT
+      00C1A9B2  cmp-reg   jne   TBoGT                cmp dword ptr [0x112d754], ebx
+                gates a call: runs isNetworkGameRunning, sub_008515B0
 
 ------------------------------------------------------------------------------
   function 00C1E820   (1 locked)
-      00C1E896  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+      00C1E896  cmp-imm   jne   UNSHIPPED EPISODE 3  cmp dword ptr [0x112d754], 3
+                gates a call: runs isNetworkGameRunning, sub_0093B2C0
 
 ------------------------------------------------------------------------------
   function 00C21EA0   (1 locked)
-      00C21ECF  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00C21ECF  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a value: sets 1.3
 
 ------------------------------------------------------------------------------
   function 00C23A20   (1 locked)
-      00C23AC3  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+      00C23AC3  cmp-imm   jne   UNSHIPPED EPISODE 3  cmp dword ptr [0x112d754], 3
+                gates a call: runs isNetworkGameRunning
 
 ------------------------------------------------------------------------------
   function 00C23E05   (2 locked)
       strings: FIGHT_RUN
-      00C23F5F  cmp-reg   jne   cmp dword ptr [0x112d754], edi     TLAD
-      00C23FBC  cmp-reg   jne   cmp dword ptr [0x112d754], edi     value not resolved
+      00C23F5F  cmp-reg   jne   TLAD                 cmp dword ptr [0x112d754], edi
+                gates a call: skips isNetworkGameRunning
+      00C23FBC  cmp-reg   jne   value not resolved   cmp dword ptr [0x112d754], edi
+                gates a call: runs isPlayer
 
 ------------------------------------------------------------------------------
   function 00C2B200   (1 locked)
-      00C2B260  cmp-reg   jne   cmp dword ptr [0x112d754], ebx     TBoGT
+      00C2B260  cmp-reg   jne   TBoGT                cmp dword ptr [0x112d754], ebx
+                UNKNOWN - guards 16 bytes of inline code (flag bits)
 
 ------------------------------------------------------------------------------
   function 00C2DD30   (2 locked)
-      00C2DDC2  cmp-imm   je    cmp dword ptr [0x112d754], 2       TBoGT
-      00C2DE75  cmp-reg   jne   cmp dword ptr [0x112d754], ecx     TBoGT
+      00C2DDC2  cmp-imm   je    TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - guards 225 bytes of inline code (field writes, flag bits)
+      00C2DE75  cmp-reg   jne   TBoGT                cmp dword ptr [0x112d754], ecx
+                UNKNOWN - guards 8 bytes of inline code (flag bits)
 
 ------------------------------------------------------------------------------
   function 00C3549A   (1 locked)
-      00C35776  cmp-imm   jge   cmp dword ptr [0x112d754], 2       TBoGT
+      00C35776  cmp-imm   jge   TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - guards 3 bytes of inline code (float maths, field writes, flag bits)
 
 ------------------------------------------------------------------------------
   function 00C3DABC   (1 locked)
-      00C3DDB5  cmp-reg   je    cmp dword ptr [0x112d754], eax     TBoGT
+      00C3DDB5  cmp-reg   je    TBoGT                cmp dword ptr [0x112d754], eax
+                gates a value: sets 0.4
 
 ------------------------------------------------------------------------------
   function 00C3FE00   (1 locked)
-      00C3FF33  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00C3FF33  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a call: isNetworkGameRunning  vs  sub_00C3E380
+
+------------------------------------------------------------------------------
+  function 00C5830A   (1 locked)
+      00C5831A  cmp-imm   jl    TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - guards 24 bytes of inline code (float maths)
 
 ------------------------------------------------------------------------------
   function 00C6C75F   (1 locked)
-      00C6CA62  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00C6CA62  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - guards 12 bytes of inline code (flag bits)
 
 ------------------------------------------------------------------------------
   function 00C6D9F6   (2 locked)
       strings: iler 9.26.952.2844
-      00C6DAB5  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
-      00C6DC8A  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00C6DAB5  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: skips sub_00941D70
+      00C6DC8A  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: skips sub_00941D70
 
 ------------------------------------------------------------------------------
   function 00C6F2A3   (1 locked)
-      00C6F30F  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00C6F30F  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a value: 2.25  vs  1.5, 0.707
 
 ------------------------------------------------------------------------------
   function 00C78300   (1 locked)
-      00C78389  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+      00C78389  cmp-imm   jl    TBoGT                cmp dword ptr [0x112d754], 2
+                UNKNOWN - guards 84 bytes of inline code (flag bits)
 
 ------------------------------------------------------------------------------
   function 00C7B988   (1 locked)
-      00C7BB57  cmp-reg   jl    cmp dword ptr [0x112d754], edx     TBoGT
+      00C7BB57  cmp-reg   jl    TBoGT                cmp dword ptr [0x112d754], edx
+                gates a value: sets 1000
 
 ------------------------------------------------------------------------------
   function 00C7FCD0   (1 locked)
-      00C7FD14  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+      00C7FD14  cmp-imm   jl    TBoGT                cmp dword ptr [0x112d754], 2
+                gates a value: sets 20, 6
 
 ------------------------------------------------------------------------------
   function 00C899D0   (1 locked)
-      00C89A61  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00C89A61  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: skips sub_00A33E80
 
 ------------------------------------------------------------------------------
   function 00C8C2A0   (1 locked)
-      00C8C4BD  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00C8C4BD  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: runs sub_008AE3E0
 
 ------------------------------------------------------------------------------
   function 00C9A640   (1 locked)
-      00C9A84B  cmp-imm   jle   cmp dword ptr [0x112d754], 0       base IV
+      00C9A84B  cmp-imm   jle   base IV              cmp dword ptr [0x112d754], 0
+                gates a call: runs sub_0062B1E0
 
 ------------------------------------------------------------------------------
   function 00C9F880   (1 locked)
       strings: corona / coronas
-      00C9FF04  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00C9FF04  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a value: sets 0.5
 
 ------------------------------------------------------------------------------
   function 00CB46D0   (1 locked)
-      00CB4771  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00CB4771  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a value: sets 3.5
 
 ------------------------------------------------------------------------------
   function 00CB5A66   (1 locked)
-      00CB5E7F  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00CB5E7F  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a value: 3, 2  vs  1
 
 ------------------------------------------------------------------------------
   function 00CBE380   (2 locked)
       strings: fff?
-      00CBE451  cmp-reg   jne   cmp dword ptr [0x112d754], ebp     TBoGT
-      00CBE708  cmp-reg   jne   cmp dword ptr [0x112d754], ebp     value not resolved
+      00CBE451  cmp-reg   jne   TBoGT                cmp dword ptr [0x112d754], ebp
+                picks a call: isNetworkGameRunning  vs  sub_00CF8AE2
+      00CBE708  cmp-reg   jne   value not resolved   cmp dword ptr [0x112d754], ebp
+                gates a block: calls sub_00CF8AE2
 
 ------------------------------------------------------------------------------
   function 00CBE910   (1 locked)
-      00CBEB4F  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00CBEB4F  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a value: sets 2
 
 ------------------------------------------------------------------------------
   function 00CC18D0   (1 locked)
       strings: GANG_CHASE
-      00CC1AC1  cmp-reg   jne   cmp dword ptr [0x112d754], ecx     TLAD
+      00CC1AC1  cmp-reg   jne   TLAD                 cmp dword ptr [0x112d754], ecx
+                gates a block: mentions GANG_CHASE
 
 ------------------------------------------------------------------------------
   function 00CC38B0   (2 locked)
       strings: USJA / USJ_ALL / USJ_1LEFT / USJ_LEFT / USJFAILA
-      00CC396E  cmp-reg   jne   cmp dword ptr [0x112d754], esi     value not resolved
-      00CC3EA7  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
+      00CC396E  cmp-reg   jne   value not resolved   cmp dword ptr [0x112d754], esi
+                gates a call: runs MISSION_COMPLETE_%02d, sub_008A4000
+      00CC3EA7  cmp-imm   jne   base IV              cmp dword ptr [0x112d754], 0
+                picks a value: 1, 0  vs  269
 
 ------------------------------------------------------------------------------
   function 00CCB270   (1 locked)
       strings: CTaskComplexShockingEventWatch / SURPRISED / SHOCKED / GANG_FIGHT_CHEER / FIGHT_CHEER
-      00CCB44D  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+      00CCB44D  cmp-imm   jne   TLAD                 cmp dword ptr [0x112d754], 1
+                picks a call: MsgViralKillMe  vs  sub_00CF8AE2, sub_0093B440
 
 ------------------------------------------------------------------------------
   function 00CCBBA0   (1 locked)
       strings: SURPRISED / SHOCKED / SHIT
-      00CCBBF3  cmp-reg   jne   cmp dword ptr [0x112d754], edi     TLAD
+      00CCBBF3  cmp-reg   jne   TLAD                 cmp dword ptr [0x112d754], edi
+                gates a call: runs MsgViralKillMe
 
 ------------------------------------------------------------------------------
   function 00CE4090   (1 locked)
-      00CE41F3  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00CE41F3  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                gates a call: runs isNetworkGameRunning
 
 ------------------------------------------------------------------------------
   function 00D3B7A0   (1 locked)
-      00D3B872  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00D3B872  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a value: 59  vs  65
 
 ------------------------------------------------------------------------------
   function 00D3B900   (1 locked)
-      00D3B9B5  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00D3B9B5  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a value: 59  vs  65
 
 ------------------------------------------------------------------------------
   function 00D3C760   (1 locked)
       strings: STATS_NET_I_PC
-      00D3C915  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00D3C915  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a value: 59  vs  65
 
 ------------------------------------------------------------------------------
   function 00D41E10   (1 locked)
       strings: platform:/textures/leaderboards / NetStatsIcons
-      00D41FA5  cmp-reg   je    cmp dword ptr [0x112d754], ebp     base IV
+      00D41FA5  cmp-reg   je    base IV              cmp dword ptr [0x112d754], ebp
+                gates a call: skips memory:
 
 ------------------------------------------------------------------------------
   function 00D420F1   (1 locked)
       strings: update:pc/textures/Leaderboards.xtd
-      00D42135  cmp-reg   jne   cmp dword ptr [0x112d788], ebp     value not resolved
+      00D42135  cmp-reg   jne   value not resolved   cmp dword ptr [0x112d788], ebp
+                picks a name: update:pc/textures/Leaderboards.xtd  vs  platform:/textures/leaderboards NetStatsIcons
 
 ------------------------------------------------------------------------------
   function 00D46FF0   (1 locked)
       strings: MO_BENCH_ENDED
-      00D472DB  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00D472DB  cmp-imm   jne   TBoGT                cmp dword ptr [0x112d754], 2
+                picks a value: 71  vs  1
 
 ##############################################################################
-#  SECTION 4 - GATES TACEPATCH ALREADY OPENS   (93)
+#  SECTION 4 - GATES TACEPATCH ALREADY OPENS   (95)
 ##############################################################################
 
   0049503E  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- Parachute anims
@@ -1675,6 +2242,7 @@ interesting rather than live.
   006F20C4  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- Parachute #1
   0071C81A  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (APC) #5
   007BBDAC  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- parachute wind sounds / explosive weapons networking
+  007DB7D3  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- Parachute #2
   00801031  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (APC) sounds
   00801273  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (BUZZARD) sounds
   00802E02  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- Weapon sounds sub_B5D970
@@ -1698,6 +2266,7 @@ interesting rather than live.
   00965823  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (APC) respray
   00965D30  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport APC & BUZZARD
   00989974  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (APC) #6
+  0098AC20  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (APC) #7
   0098C7E0  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- Sniper rifle checks #1
   009900A6  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- weap checks #2
   00994441  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- CExplosions__addExplosion
