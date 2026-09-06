@@ -39,8 +39,10 @@ namespace
     struct Gate
     {
         uintptr_t      at;
+        uint32_t       staticVa;   // the address in docs/episode-gates.txt
         const GateEntry *entry;
         uint32_t       hits;
+        bool           forced;     // TacePatch NOPed the jump - always episodic
         bool           announced;
     };
 
@@ -77,20 +79,31 @@ namespace
         static const char *kEp[] = {"base IV", "TLAD", "TBoGT", "episode 3"};
         const char *nowName = (now >= 0 && now < 4) ? kEp[now] : "?";
 
-        if (want < 0)
+        // Addresses are reported as the STATIC 1.0.8.0 address, not the ASLR
+        // one, so they can be looked up in docs/episode-gates.txt directly.
+        if (g.forced)
+        {
+            // The comparison still runs and still says "wrong episode", but
+            // TacePatch has NOPed the jump that acts on it, so the episodic
+            // path is taken anyway. Reporting this as LOCKED OUT would be
+            // exactly backwards.
+            TACE_OK("[gate] %08X %-40s FORCED OPEN by TacePatch (would want episode %d, is %d)",
+                    g.staticVa, g.entry->label, want, now);
+        }
+        else if (want < 0)
         {
             TACE_INFO("[gate] %08X %-40s reached  (episode is %d, %s)",
-                      (unsigned)g.at, g.entry->label, now, nowName);
+                      g.staticVa, g.entry->label, now, nowName);
         }
         else if (want == now)
         {
             TACE_OK("[gate] %08X %-40s TAKEN    (needs episode %d, is %d)",
-                    (unsigned)g.at, g.entry->label, want, now);
+                    g.staticVa, g.entry->label, want, now);
         }
         else
         {
             TACE_WARN("[gate] %08X %-40s LOCKED OUT (needs episode %d, is %d %s)",
-                      (unsigned)g.at, g.entry->label, want, now, nowName);
+                      g.staticVa, g.entry->label, want, now, nowName);
         }
     }
 
@@ -187,7 +200,7 @@ void GateProfile_Init()
     }
 
     uint8_t *pen = gStubs;
-    size_t installed = 0, mismatched = 0;
+    size_t installed = 0, mismatched = 0, forced = 0;
     for (size_t i = 0; i < kGateCount; i++)
     {
         const GateEntry &e = kGates[i];
@@ -218,7 +231,17 @@ void GateProfile_Init()
         }
 
         gGates[gCount].at = (uintptr_t)at;
+        gGates[gCount].staticVa = e.rva + 0x400000;
         gGates[gCount].entry = &e;
+
+        // Read the finished state of the jump this gate controls. TacePatch's
+        // episodic patches NOP it, and a NOPed jump means the episodic path is
+        // taken whatever the comparison says. This is why the profiler has to
+        // initialise after every other patch has been applied.
+        const uint8_t *jump = at + e.length;
+        gGates[gCount].forced = (jump[0] == 0x90 && jump[1] == 0x90);
+        if (gGates[gCount].forced)
+            forced++;
 
         uint8_t *stub = pen;
         pen = EmitStub(pen, gCount, at, e.length);

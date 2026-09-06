@@ -405,7 +405,6 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
         PainVoice_Init();
         GangWeapons_Init();
         CopWeapons_Init();
-        GateProfile_Init();
 
         hook::pattern pattern {};
 
@@ -732,6 +731,13 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
 
         TACE_INFO("[patch] %d applied, %d already open, %d not found, %d ambiguous",
                   gPatchApplied, gPatchAlready, gPatchMissing, gPatchAmbiguous);
+        // LAST, deliberately. The profiler rewrites the compare instruction
+        // at every gate, which would destroy the byte signatures every patch
+        // above searches for - so it must not run until they have all been
+        // applied. It also needs to see the finished state to tell a gate
+        // TacePatch has forced open from one that is still episode-locked.
+        GateProfile_Init();
+
         TaceLog_Summary();
     }
 
