@@ -27,6 +27,7 @@ void PainVoice_Init();
 void PainVoice_OnInitMap();
 void GangWeapons_Init();
 void CopWeapons_Init();
+void GateProfile_Init();
 
 //requests the animation to be loaded if it hasnt
 bool (*CAnimMgr__HasAnimLoaded)(uint32_t animGroup) = nullptr;
@@ -404,6 +405,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
         PainVoice_Init();
         GangWeapons_Init();
         CopWeapons_Init();
+        GateProfile_Init();
 
         hook::pattern pattern {};
 

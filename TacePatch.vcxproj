@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -152,11 +152,13 @@
     <ClCompile Include="src\painvoice.cpp" />
     <ClCompile Include="src\gangweapons.cpp" />
     <ClCompile Include="src\copweapons.cpp" />
+    <ClCompile Include="src\gateprofile.cpp" />
     <ClCompile Include="src\main.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Config.h" />
     <ClInclude Include="src\LimitAdjuster.h" />
+    <ClInclude Include="src\GateTable.h" />
     <ClInclude Include="src\Log.h" />
     <ClInclude Include="src\Patterns.h" />
     <ClInclude Include="src\Weapons.h" />
