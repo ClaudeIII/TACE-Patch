@@ -1,0 +1,1863 @@
+GTA IV 1.0.8.0 - EPISODE GATE INVENTORY  (executable only)
+==============================================================================
+
+Generated 2026-09-05 from GTAIV.exe 1.0.8.0, ImageBase 00400000.
+
+*** FINDINGS ONLY. Nothing here is implemented, patched or recommended. ***
+
+Every place the executable branches on which episode is loaded, across all
+three episode globals and every instruction shape. Organised BY FUNCTION -
+gates in one function belong to one feature, and reading them together is the
+only way to tell a content gate from a two-way per-episode choice.
+
+CONTENTS
+  1  The unshipped episode 3         28 references
+  2  Best leads                      15 gates
+  3  All still-locked gates, by function
+  4  Gates TacePatch already opens   93
+  5  Non-branch references           94
+
+THE THREE GLOBALS  (mirrors, written together by the setter at 007D4665 in a
+function carrying the GameLogic string; code branches on all three, so
+scanning any one of them alone is not enough)
+    0112D754  the global the branches overwhelmingly read      464 refs
+    0112D788  what TacePatch _dwCurrentEpisode resolves to      63 refs
+    0112D76C  third mirror                                      14 refs
+
+SUMMARY
+    references to an episode global .......... 541
+    branch-shaped (a real gate) .............. 447
+        already opened by TacePatch .......... 93
+        STILL EPISODE-LOCKED ................. 354
+    non-branch references .................... 94
+
+    locked by shape:   cmp-imm 235   cmp-reg 85   load-cmp 34
+    locked by episode: 0=50   1=43   2=174   3=28   unresolved=59
+
+BEFORE OPENING ANY OF THEM
+  A gate is content the game runs only in one episode; opening it makes that
+  content unconditional. NOT every gate should be opened. Many choose between
+  two equally valid per-episode values - a constant, a model name, a sound -
+  and forcing one overrides the other episode. Worked example: a patch
+  labelled E2 Bullet traces was landing on a `cmp episode,1` choosing between
+  the PU_SEADONE and PU_SEADONEE2 pickup names, pinning a pickup name in
+  every episode for no benefit.
+
+  Only cmp-imm gates are openable by NOPing the jump. cmp-reg and load-cmp
+  need the surrounding code read first - the branch may be shared.
+
+  Outside this file: SCM checks via GET_CURRENT_EPISODE, rpf.xml mounting and
+  per-episode .dat/.img data gate a great deal that no code scan will find.
+
+##############################################################################
+#  SECTION 1 - THE UNSHIPPED EPISODE 3
+##############################################################################
+
+An earlier version of this file wrote these off as bounds checks. They are
+not. They are real equality branches with substantial bodies, and the game
+carries frontend strings for episodes that were never released:
+
+    00D89294  FE_NODLC          00D85DCC  FE_NODLC2
+    00D85DC0  FE_NODLC3         00D892CC  FE_NODLC4
+    00D892F0  BLANK EPISODE NAME
+
+FE_NODLC2 and FE_NODLC3 are used as a pair at 0049419E / 004941B7, in the
+function that also writes the episode mirror at 004941DC - the frontend path
+reporting that a required episode is not installed. Slots for a third and a
+fourth episode exist in that logic.
+
+Episode 3 is heavily correlated with MULTIPLAYER. Nine sites share one shape,
+`cmp episode,3 / jne / call 006C1A10 / test al,al / je`, and 006C1A10 is
+isNetworkGameRunning - it reads the session table at 1100498 and the flag at
+18CB4D5. Others sit in functions carrying MP session strings: Hosting
+RENDEZVOUS session, MP_SESSION_FULL, MP_WRONGVERSION, CREATING_MY_PEER,
+PLRankIcons.
+
+REACHABILITY IS NOT SETTLED HERE. No instruction writes a literal 3 to any of
+the three globals - every write is `mov [global], reg` (all 20 are in section
+5), the main one at 007D4665. Whether episode 3 is reachable depends on what
+that setter is passed, which this scan does not determine. Treat these as
+interesting rather than live.
+
+------------------------------------------------------------------------------
+  004969B7   [D754]  cmp-imm   in function 00496930
+      function strings: playersettings2
+        004969B7  cmp     dword ptr [0x112d754], 3        
+        004969BE  mov     dword ptr [esi + 0x638], ecx    
+        004969C4  mov     dword ptr [esi + 0x63c], eax    
+        004969CA  push    ebx                             
+        004969CB  jne     0x4969d1                        
+        004969CD  push    0xc                             
+        004969CF  jmp     0x4969d3                        
+
+------------------------------------------------------------------------------
+  00497775   [D754]  cmp-imm   in function 004973F4
+      function strings: PLRankIcons / iler 9.26.952.2844
+        00497775  cmp     dword ptr [0x112d754], 3        
+        0049777C  jne     0x4977b4                        
+        0049777E  mov     esi, dword ptr [0x11516b8]      
+        00497784  cmp     byte ptr [esi + 0x10], 0        
+        00497788  je      0x4977b4                        
+        0049778A  push    0x1fe                           
+        0049778F  mov     ecx, esi                        
+
+------------------------------------------------------------------------------
+  0049B030   [D754]  cmp-imm   in function 0049AFE0
+        0049B030  cmp     dword ptr [0x112d754], 3        
+        0049B037  mov     edx, dword ptr [0x1368ba0]      
+        0049B03D  mov     eax, dword ptr [0x18cb008]      
+        0049B042  jne     0x49b052                        
+        0049B044  cmp     edx, dword ptr [eax + 0x14]     
+        0049B047  sete    cl                              
+        0049B04A  push    ecx                             
+
+------------------------------------------------------------------------------
+  006C2826   [D754]  cmp-imm   in function 006C27A0
+      function strings: Hosting RENDEZVOUS session / Hosting TvT session / Hosting STANDARD session
+        006C2826  cmp     dword ptr [0x112d754], 3        
+        006C282D  jne     0x6c2849                        
+        006C282F  mov     ecx, dword ptr [0xff21ec]       
+        006C2835  mov     dword ptr [eax + 0x28], ecx     
+        006C2838  test    ecx, ecx                        
+        006C283A  mov     ecx, edx                        
+        006C283C  je      0x6c2844                        
+
+------------------------------------------------------------------------------
+  006C2B99   [D754]  cmp-imm   in function 006C2B39
+        006C2B99  cmp     dword ptr [0x112d754], 3        
+        006C2BA0  jne     0x6c2bbc                        
+        006C2BA2  mov     ecx, dword ptr [0xff21ec]       
+        006C2BA8  mov     dword ptr [eax + 0x28], ecx     
+        006C2BAB  test    ecx, ecx                        
+        006C2BAD  mov     ecx, edx                        
+        006C2BAF  je      0x6c2bb7                        
+
+------------------------------------------------------------------------------
+  006C5350   [D754]  cmp-imm   in function 006C5290
+      function strings: CREATING_MY_PEER
+        006C5350  cmp     dword ptr [0x112d754], 3        
+        006C5357  cmove   edi, ebx                        
+        006C535A  call    0xd53bf2                        
+        006C535F  sub     eax, 1                          
+        006C5362  je      0x6c5380                        
+        006C5364  sub     eax, 1                          
+        006C5367  je      0x6c5379                        
+
+------------------------------------------------------------------------------
+  006C730D   [D754]  cmp-imm   in function 006C7180
+      function strings: MP_SESSION_FULL / MP_BLACKLISTED / MP_WRONGVERSION / MP_NOPASS / MP_UNKNOWN
+        006C730D  cmp     dword ptr [0x112d754], 3        
+        006C7314  jne     0x6c7332                        
+        006C7316  mov     edx, dword ptr [esp + 0x44]     
+        006C731A  mov     esi, dword ptr [esp + 0x18]     
+        006C731E  push    edx                             
+        006C731F  call    0x6c70c0                        
+        006C7324  test    al, al                          
+
+------------------------------------------------------------------------------
+  006F14AF   [D754]  cmp-imm   in function 006F1470
+        006F14AF  cmp     dword ptr [0x112d754], 3        
+        006F14B6  mov     dword ptr [eax + 0x24], esi     
+        006F14B9  mov     dword ptr [eax + 0x20], ecx     
+        006F14BC  pop     esi                             
+        006F14BD  jne     0x6f14f3                        
+        006F14BF  cmp     edx, ecx                        
+        006F14C1  mov     dword ptr [eax + 0x28], edx     
+
+------------------------------------------------------------------------------
+  007102AA   [D754]  cmp-reg   in function 00710110
+        007102AA  cmp     dword ptr [0x112d754], edi      
+        007102B0  jne     0x7102b9                        
+        007102B2  call    0x7110b0                        
+        007102B7  jmp     0x7102be                        
+        007102B9  call    0x711220                        
+        007102BE  cmp     byte ptr [0x19b4e64], bl        
+        007102C4  je      0x7102d0                        
+
+------------------------------------------------------------------------------
+  00710719   [D754]  cmp-imm   in function 00710660
+        00710719  cmp     dword ptr [0x112d754], 3        
+        00710720  mov     ecx, dword ptr [esp + 0x20]     
+        00710724  mov     eax, dword ptr [esp + 0x1c]     
+        00710728  push    ecx                             
+        00710729  mov     dword ptr [edx + 0x20], eax     
+        0071072C  mov     dword ptr [edx + 0x24], ecx     
+        0071072F  push    eax                             
+
+------------------------------------------------------------------------------
+  00710826   [D754]  cmp-imm   in function 00710790
+        00710826  cmp     dword ptr [0x112d754], 3        
+        0071082D  mov     eax, dword ptr [esp + 0x1c]     
+        00710831  cdq                                     
+        00710832  push    edx                             
+        00710833  mov     dword ptr [esi + 0x20], eax     
+        00710836  mov     dword ptr [esi + 0x24], edx     
+        00710839  push    eax                             
+
+------------------------------------------------------------------------------
+  00710DBE   [D754]  cmp-imm   in function 00710DA0
+        00710DBE  cmp     dword ptr [0x112d754], 3        
+        00710DC5  mov     ecx, dword ptr [ebp + 8]        
+        00710DC8  jne     0x710e4e                        
+        00710DCE  cmp     dword ptr [ecx + 8], 0          
+        00710DD2  jne     0x710dda                        
+        00710DD4  cmp     dword ptr [ecx + 0xc], 0        
+        00710DD8  je      0x710e22                        
+
+------------------------------------------------------------------------------
+  00710F16   [D754]  cmp-imm   in function 00710F00
+        00710F16  cmp     dword ptr [0x112d754], 3        
+        00710F1D  jne     0x710f44                        
+        00710F1F  mov     ecx, dword ptr [esp + 8]        
+        00710F23  cmp     dword ptr [ecx + 8], 0          
+        00710F27  jne     0x710f2f                        
+        00710F29  cmp     dword ptr [ecx + 0xc], 0        
+        00710F2D  je      0x710f44                        
+
+------------------------------------------------------------------------------
+  00711AB9   [D754]  cmp-imm   in function 00711AB0
+        00711AB9  cmp     dword ptr [0x112d754], 3        
+        00711AC0  push    esi                             
+        00711AC1  jne     0x711adf                        
+        00711AC3  mov     eax, dword ptr [ebp + 8]        
+        00711AC6  push    eax                             
+        00711AC7  call    0x711b70                        
+        00711ACC  cdq                                     
+
+------------------------------------------------------------------------------
+  00711B79   [D754]  cmp-imm   in function 00711B70
+        00711B79  cmp     dword ptr [0x112d754], 3        
+        00711B80  push    esi                             
+        00711B81  push    edi                             
+        00711B82  jne     0x711bd2                        
+        00711B84  call    0x6cbb40                        
+        00711B89  test    eax, eax                        
+        00711B8B  je      0x711bca                        
+
+------------------------------------------------------------------------------
+  0093138E   [D754]  cmp-imm   in function 00931360
+        0093138E  cmp     dword ptr [0x112d754], 3        
+        00931395  jne     0x9313ad                        
+        00931397  call    0x6c1a10                        
+        0093139C  test    al, al                          
+        0093139E  je      0x9313ad                        
+        009313A0  push    edi                             
+        009313A1  call    0x9306b0                        
+
+------------------------------------------------------------------------------
+  009314D0   [D754]  cmp-imm   in function 00931480
+        009314D0  cmp     dword ptr [0x112d754], 3        
+        009314D7  jne     0x9314ef                        
+        009314D9  call    0x6c1a10                        
+        009314DE  test    al, al                          
+        009314E0  je      0x9314ef                        
+        009314E2  push    edi                             
+        009314E3  call    0x9306b0                        
+
+------------------------------------------------------------------------------
+  00932526   [D754]  cmp-imm   in function 00932520
+        00932526  cmp     dword ptr [0x112d754], 3        
+        0093252D  push    esi                             
+        0093252E  push    edi                             
+        0093252F  mov     ecx, 0x40                       
+        00932534  mov     esi, 0x1401164                  
+        00932539  lea     edi, [esp + 0x18]               
+        0093253D  rep movsd dword ptr es:[edi], dword ptr [esi]
+
+------------------------------------------------------------------------------
+  0094BBBD   [D754]  cmp-imm   in function 0094BBB0
+        0094BBBD  cmp     dword ptr [0x112d754], 3        
+        0094BBC4  push    edi                             
+        0094BBC5  jne     0x94bbfc                        
+        0094BBC7  call    0x6c1a10                        
+        0094BBCC  test    al, al                          
+        0094BBCE  je      0x94bbfc                        
+        0094BBD0  mov     ecx, dword ptr [esi + 0x40]     
+
+------------------------------------------------------------------------------
+  009BDBC8   [D754]  load-cmp   in function 009BDB10
+        009BDBC8  mov     eax, dword ptr [0x112d754]      
+        009BDBCD  cmp     eax, 3                          
+        009BDBD0  movss   xmm0, dword ptr [0xf464c4]      
+        009BDBD8  movss   xmm1, dword ptr [0xd6d7c8]      
+        009BDBE0  jne     0x9bdbeb                        
+        009BDBE2  comiss  xmm1, xmm0                      
+        009BDBE5  jbe     0x9bdbeb                        
+
+------------------------------------------------------------------------------
+  009BDF30   [D754]  cmp-imm   in function 009BDB10
+        009BDF30  cmp     dword ptr [0x112d754], 3        
+        009BDF37  jne     0x9bdf47                        
+        009BDF39  cmp     byte ptr [edi + 0x27], 0xc8     
+        009BDF3D  je      0x9bdf47                        
+        009BDF3F  cmp     dword ptr [esi + 0x1350], ebx   
+        009BDF45  jne     0x9bdf5c                        
+        009BDF47  mov     dword ptr [esi + 0x1320], 1     
+
+------------------------------------------------------------------------------
+  00A504DA   [D754]  cmp-imm   in function 00A503E0
+        00A504DA  cmp     dword ptr [0x112d754], 3        
+        00A504E1  mov     byte ptr [esp + 0x1b], 1        
+        00A504E6  je      0xa504ed                        
+        00A504E8  mov     byte ptr [esp + 0x1b], 0        
+        00A504ED  test    bl, bl                          
+        00A504EF  jne     0xa504fb                        
+        00A504F1  cmp     byte ptr [esp + 0x1b], bl       
+
+------------------------------------------------------------------------------
+  00ACD080   [D754]  cmp-imm   in function 00ACD080
+        00ACD080  cmp     dword ptr [0x112d754], 3        
+        00ACD087  jne     0xacd095                        
+        00ACD089  call    0x7d4590                        
+        00ACD08E  test    al, al                          
+        00ACD090  je      0xacd095                        
+        00ACD092  mov     al, 1                           
+        00ACD094  ret                                     
+
+------------------------------------------------------------------------------
+  00B39E26   [D754]  load-cmp   in function 00B39E00
+        00B39E26  mov     eax, dword ptr [0x112d754]      
+        00B39E2B  add     esp, 0x14                       
+        00B39E2E  cmp     eax, 3                          
+        00B39E31  jne     0xb39e3a                        
+        00B39E33  movzx   eax, byte ptr [esp + 8]         
+        00B39E38  pop     ecx                             
+        00B39E39  ret                                     
+
+------------------------------------------------------------------------------
+  00B39E93   [D754]  cmp-imm   in function 00B39E90
+        00B39E93  cmp     dword ptr [0x112d754], 3        
+        00B39E9A  jne     0xb39f40                        
+        00B39EA0  push    edi                             
+        00B39EA1  mov     edi, dword ptr [esp + 0x1c]     
+        00B39EA5  cmp     edi, -1                         
+        00B39EA8  jle     0xb39f3f                        
+        00B39EAE  push    esi                             
+
+------------------------------------------------------------------------------
+  00B43301   [D754]  cmp-imm   in function 00B432D0
+        00B43301  cmp     dword ptr [0x112d754], 3        
+        00B43308  jne     0xb433c8                        
+        00B4330E  mov     al, byte ptr [0x18cb034]        
+        00B43313  test    al, 0x20                        
+        00B43315  je      0xb4331b                        
+        00B43317  test    al, 0x10                        
+        00B43319  jne     0xb4332c                        
+
+------------------------------------------------------------------------------
+  00C1E896   [D754]  cmp-imm   in function 00C1E820
+        00C1E896  cmp     dword ptr [0x112d754], 3        
+        00C1E89D  jne     0xc1e8c0                        
+        00C1E89F  call    0x6c1a10                        
+        00C1E8A4  test    al, al                          
+        00C1E8A6  je      0xc1e8c0                        
+        00C1E8A8  cmp     byte ptr [esi + 0xa70], 1       
+        00C1E8AF  jne     0xc1e8c0                        
+
+------------------------------------------------------------------------------
+  00C23AC3   [D754]  cmp-imm   in function 00C23A20
+        00C23AC3  cmp     dword ptr [0x112d754], 3        
+        00C23ACA  jne     0xc23ae1                        
+        00C23ACC  call    0x6c1a10                        
+        00C23AD1  test    al, al                          
+        00C23AD3  je      0xc23ae1                        
+        00C23AD5  cmp     byte ptr [esp + 9], 0           
+        00C23ADA  mov     byte ptr [esp + 0xa], 1         
+
+##############################################################################
+#  SECTION 2 - BEST LEADS   (15)
+#  Locked gates in a function where TacePatch ALREADY opens a sibling gate.
+#  The feature was clearly wanted and a branch was left behind.
+##############################################################################
+
+  function 00494DE0
+      strings: QSVj
+      opened : 0049503E  cmp dword ptr [0x112d754], 2       <- Parachute anims
+      LOCKED : 00494F54  cmp dword ptr [0x112d754], esi     jne   value not resolved
+
+  function 004A6980
+      strings: target
+      opened : 004A6F1E  cmp dword ptr [0x112d754], 2       <- Sticky bomb drop icon
+      opened : 004A6F47  cmp dword ptr [0x112d754], 0       <- PipeBombDropIconSupport
+      LOCKED : 004A6C05  cmp dword ptr [0x112d754], 2       je    TBoGT
+      LOCKED : 004A730A  cmp dword ptr [0x112d754], 2       je    TBoGT
+
+  function 0084A8E0
+      strings: cj_cone / cj_cylinder / _ICON / CJ_ARROW_ICON / CJ_ARROW_ICON_2
+      opened : 0084AA71  cmp dword ptr [0x112d788], 2       <- E2_Landing marker request model #3
+      LOCKED : 0084A99E  mov eax, dword ptr [0x112d788]     -     TBoGT
+
+  function 00850EF0
+      opened : 00850F03  cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (BUZZARD) weapon effects
+      LOCKED : 00850F9E  cmp dword ptr [0x112d754], 2       jl    TBoGT
+
+  function 009D0B80
+      opened : 009D0BD0  cmp dword ptr [0x112d754], 2       <- Sticky bomb
+      LOCKED : 009D0D0B  cmp dword ptr [0x112d754], 2       jne   TBoGT
+
+  function 00AF0450
+      strings: water_boat_propellor_e2 / water_boat_propellor / speed / depth / reverse
+      opened : 00AF0714  cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport Boat models #1
+      LOCKED : 00AF04EB  cmp dword ptr [0x112d754], 2       jne   TBoGT
+      LOCKED : 00AF0785  cmp dword ptr [0x112d754], 2       -     TBoGT
+
+  function 00AF2F50
+      strings: water_boat_bow_e2 / water_boat_rev_e2 / water_boat_bow / water_boat_rev / speed
+      opened : 00AF330C  cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport Boat models #2
+      LOCKED : 00AF2FA8  cmp dword ptr [0x112d754], 2       -     TBoGT
+      LOCKED : 00AF3358  cmp dword ptr [0x112d754], 2       jne   TBoGT
+
+  function 00AF3388
+      strings: water_boat_rev_e2 / water_boat_bow / water_boat_rev / water_boat_wash_e2 / water_boat_wash
+      opened : 00AF3686  cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport Boat models #2
+      LOCKED : 00AF3472  cmp dword ptr [0x112d754], 2       -     TBoGT
+      LOCKED : 00AF36D2  cmp dword ptr [0x112d754], 2       jne   TBoGT
+
+  function 00AF3740
+      strings: water_boat_entry_e2 / water_boat_entry / speed / fff?
+      opened : 00AF3938  cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport Boat models #4
+      LOCKED : 00AF3792  cmp dword ptr [0x112d754], 2       jne   TBoGT
+      LOCKED : 00AF397C  cmp dword ptr [0x112d754], 2       -     TBoGT
+
+  function 00BCB8B0
+      strings: still / veh@bike_freeway
+      opened : 00BCB925  cmp dword ptr [0x112d754], eax     <- BikeFeetFix
+      LOCKED : 00BCBC07  cmp dword ptr [0x112d754], 1       jl    TLAD
+
+##############################################################################
+#  SECTION 3 - ALL STILL-LOCKED GATES, GROUPED BY FUNCTION
+##############################################################################
+
+  266 functions contain at least one locked gate. A function listing several
+  is usually one feature with several branches; read them together.
+
+------------------------------------------------------------------------------
+  function 00475D90   (1 locked)
+      00475D90  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
+
+------------------------------------------------------------------------------
+  function 00475DB0   (1 locked)
+      00475DB0  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
+
+------------------------------------------------------------------------------
+  function 0047C4BD   (1 locked)
+      strings: MO_BENCH_TEST
+      0047C7A9  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 0047E7D1   (1 locked)
+      strings: SE_SURE0 / SG_TIT / LG_SURE / DEFD_SURE / LEAVE_SURE
+      0047E928  load-cmp  jne   mov ecx, dword ptr [0x112d754]     base IV
+
+------------------------------------------------------------------------------
+  function 0047FE25   (1 locked)
+      004800AD  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+
+------------------------------------------------------------------------------
+  function 00481EE5   (1 locked)
+      00481F72  cmp-reg   jne   cmp dword ptr [0x112d754], esi     value not resolved
+
+------------------------------------------------------------------------------
+  function 0048277B   (1 locked)
+      004827E8  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 004831B0   (1 locked)
+      strings: PLNEWCLOTH
+      004832A4  cmp-imm   sete  cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00485440   (3 locked)
+      004857A5  cmp-reg   jne   cmp dword ptr [0x112d754], esi     TBoGT
+      0048596C  cmp-reg   jne   cmp dword ptr [0x112d754], esi     value not resolved
+      00485A4D  cmp-imm   jne   cmp dword ptr [0x112d788], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 0048634C   (1 locked)
+      004865A2  cmp-imm   jne   cmp dword ptr [0x112d788], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00487640   (2 locked)
+      strings: leted
+      004876C3  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      004879B2  cmp-imm   je    cmp dword ptr [0x112d754], 0       base IV
+
+------------------------------------------------------------------------------
+  function 00487D60   (1 locked)
+      00487D60  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+
+------------------------------------------------------------------------------
+  function 00487D70   (1 locked)
+      00487D7C  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+
+------------------------------------------------------------------------------
+  function 00489B75   (2 locked)
+      strings: PAD_START / FE_HLP3 / FE_CANCEL / FE_HLP27 / FE_ACCEPT
+      00489BEC  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
+      00489C0D  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
+
+------------------------------------------------------------------------------
+  function 0048DB90   (1 locked)
+      0048DB94  load-cmp  jne   mov ebx, dword ptr [0x112d754]     base IV
+
+------------------------------------------------------------------------------
+  function 0049038F   (1 locked)
+      004904F7  load-cmp  je    mov eax, dword ptr [0x112d788]     base IV
+
+------------------------------------------------------------------------------
+  function 00493A00   (1 locked)
+      00493A85  cmp-reg   jne   cmp dword ptr [0x112d754], ebx     value not resolved
+
+------------------------------------------------------------------------------
+  function 00493E20   (2 locked)
+      00493E9E  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+      00493EB1  cmp-reg   je    cmp edi, dword ptr [0x112d788]     value not resolved
+
+------------------------------------------------------------------------------
+  function 00494140   (1 locked)
+      strings: FE_NODLC3 / FE_NODLC2
+      004941D6  cmp-reg   jne   cmp dword ptr [0x112d754], edi     base IV
+
+------------------------------------------------------------------------------
+  function 004944E0   (1 locked)
+      00494656  cmp-reg   jne   cmp dword ptr [0x112d788], ebp     value not resolved
+
+------------------------------------------------------------------------------
+  function 004947E0   (2 locked)
+      0049481A  load-cmp  jl    mov esi, dword ptr [0x112d788]     TLAD
+      00494835  load-cmp  jle   mov esi, dword ptr [0x112d788]     base IV
+
+------------------------------------------------------------------------------
+  function 004949B0   (1 locked)
+      00494A23  cmp-reg   je    cmp esi, dword ptr [0x112d76c]     value not resolved
+
+------------------------------------------------------------------------------
+  function 00494B91   (1 locked)
+      00494BF0  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00494C90   (1 locked)
+      00494D8D  load-cmp  jg    mov eax, dword ptr [0x112d788]     value not resolved
+
+------------------------------------------------------------------------------
+  function 00494DE0   (1 locked, 1 already opened)
+      strings: QSVj
+      opened : 0049503E  cmp dword ptr [0x112d754], 2       <- Parachute anims
+      00494F54  cmp-reg   jne   cmp dword ptr [0x112d754], esi     value not resolved
+
+------------------------------------------------------------------------------
+  function 00496930   (1 locked)
+      strings: playersettings2
+      004969B7  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+
+------------------------------------------------------------------------------
+  function 00497080   (2 locked)
+      strings: platform:/textures/leaderboards / PLRankIcons / update:xbox360/textures/Leaderboards.xtd
+      00497250  cmp-reg   je    cmp dword ptr [0x112d754], ebx     value not resolved
+      00497357  cmp-reg   jne   cmp dword ptr [0x112d788], ebx     value not resolved
+
+------------------------------------------------------------------------------
+  function 004973F4   (1 locked)
+      strings: PLRankIcons / iler 9.26.952.2844
+      00497775  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+
+------------------------------------------------------------------------------
+  function 004982E0   (1 locked)
+      004982E0  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
+
+------------------------------------------------------------------------------
+  function 004985F0   (1 locked)
+      004985F1  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
+
+------------------------------------------------------------------------------
+  function 00498B40   (1 locked)
+      00498BBF  load-cmp  jne   mov edi, dword ptr [0x112d754]     base IV
+
+------------------------------------------------------------------------------
+  function 00498BE1   (1 locked)
+      00498BF9  load-cmp  jne   mov eax, dword ptr [0x112d754]     base IV
+
+------------------------------------------------------------------------------
+  function 00498F60   (2 locked)
+      0049909A  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
+      004990C5  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
+
+------------------------------------------------------------------------------
+  function 00499110   (5 locked)
+      00499113  cmp-imm   je    cmp dword ptr [0x112d754], 0       base IV
+      004992BC  cmp-imm   jle   cmp dword ptr [0x112d754], 1       TLAD
+      004993DB  cmp-imm   jle   cmp dword ptr [0x112d754], 1       TLAD
+      004994F3  cmp-imm   jg    cmp dword ptr [0x112d754], 1       TLAD
+      00499559  cmp-imm   jle   cmp dword ptr [0x112d754], 1       TLAD
+
+------------------------------------------------------------------------------
+  function 00499FD0   (1 locked)
+      00499FD3  cmp-imm   je    cmp dword ptr [0x112d754], 0       base IV
+
+------------------------------------------------------------------------------
+  function 0049A430   (1 locked)
+      0049A433  cmp-imm   je    cmp dword ptr [0x112d754], 0       base IV
+
+------------------------------------------------------------------------------
+  function 0049A7D0   (1 locked)
+      0049A7D0  cmp-imm   je    cmp dword ptr [0x112d754], 0       base IV
+
+------------------------------------------------------------------------------
+  function 0049AFE0   (5 locked)
+      0049B002  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
+      0049B030  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+      0049B074  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
+      0049B094  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
+      0049B123  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
+
+------------------------------------------------------------------------------
+  function 0049B520   (1 locked)
+      strings: update:/data/frontend_menus.xml
+      0049B593  cmp-imm   jne   cmp dword ptr [0x112d788], 0       base IV
+
+------------------------------------------------------------------------------
+  function 0049CD40   (1 locked)
+      0049CD5E  cmp-reg   jne   cmp dword ptr [0x112d754], esi     value not resolved
+
+------------------------------------------------------------------------------
+  function 0049CE10   (1 locked)
+      0049CE30  cmp-reg   jne   cmp dword ptr [0x112d754], esi     value not resolved
+
+------------------------------------------------------------------------------
+  function 0049D2B0   (1 locked)
+      0049D2D2  cmp-reg   jne   cmp dword ptr [0x112d754], esi     value not resolved
+
+------------------------------------------------------------------------------
+  function 004A0010   (1 locked)
+      004A0094  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
+
+------------------------------------------------------------------------------
+  function 004A3F30   (1 locked)
+      004A4133  cmp-reg   je    cmp dword ptr [0x112d754], ebx     value not resolved
+
+------------------------------------------------------------------------------
+  function 004A4661   (2 locked)
+      004A496F  cmp-imm   je    cmp dword ptr [0x112d754], 2       TBoGT
+      004A538D  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 004A6980   (2 locked, 2 already opened)
+      strings: target
+      opened : 004A6F1E  cmp dword ptr [0x112d754], 2       <- Sticky bomb drop icon
+      opened : 004A6F47  cmp dword ptr [0x112d754], 0       <- PipeBombDropIconSupport
+      004A6C05  cmp-imm   je    cmp dword ptr [0x112d754], 2       TBoGT
+      004A730A  cmp-imm   je    cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 004A8B4A   (2 locked)
+      004A8BC3  cmp-imm   jge   cmp dword ptr [0x112d754], 2       TBoGT
+      004A8C32  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 004B2650   (1 locked)
+      004B291B  load-cmp  je    mov eax, dword ptr [0x112d754]     TBoGT
+
+------------------------------------------------------------------------------
+  function 004B29D0   (2 locked)
+      004B2AB4  cmp-reg   jne   cmp dword ptr [0x112d754], edi     value not resolved
+      004B2C69  cmp-reg   jl    cmp dword ptr [0x112d754], edi     value not resolved
+
+------------------------------------------------------------------------------
+  function 006C27A0   (1 locked)
+      strings: Hosting RENDEZVOUS session / Hosting TvT session / Hosting STANDARD session
+      006C2826  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+
+------------------------------------------------------------------------------
+  function 006C2B39   (1 locked)
+      006C2B99  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+
+------------------------------------------------------------------------------
+  function 006C5290   (1 locked)
+      strings: CREATING_MY_PEER
+      006C5350  cmp-imm   cmove cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+
+------------------------------------------------------------------------------
+  function 006C7180   (1 locked)
+      strings: MP_SESSION_FULL / MP_BLACKLISTED / MP_WRONGVERSION / MP_NOPASS / MP_UNKNOWN
+      006C730D  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+
+------------------------------------------------------------------------------
+  function 006C9220   (1 locked)
+      strings: update:/data/leaderboards_data.xml
+      006C92B7  cmp-reg   jne   cmp dword ptr [0x112d788], edi     base IV
+
+------------------------------------------------------------------------------
+  function 006F1470   (1 locked)
+      006F14AF  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+
+------------------------------------------------------------------------------
+  function 0070FEF0   (1 locked)
+      0070FF63  cmp-reg   jne   cmp dword ptr [0x112d754], ebx     value not resolved
+
+------------------------------------------------------------------------------
+  function 00710110   (3 locked)
+      007102AA  cmp-reg   jne   cmp dword ptr [0x112d754], edi     UNSHIPPED EPISODE 3
+      00710384  cmp-reg   jne   cmp dword ptr [0x112d754], ebx     value not resolved
+      007103C8  cmp-reg   jne   cmp dword ptr [0x112d754], edi     value not resolved
+
+------------------------------------------------------------------------------
+  function 007105D0   (1 locked)
+      0071061A  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00710660   (1 locked)
+      00710719  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+
+------------------------------------------------------------------------------
+  function 00710790   (1 locked)
+      00710826  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+
+------------------------------------------------------------------------------
+  function 00710DA0   (1 locked)
+      00710DBE  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+
+------------------------------------------------------------------------------
+  function 00710F00   (1 locked)
+      00710F16  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+
+------------------------------------------------------------------------------
+  function 00711AB0   (1 locked)
+      00711AB9  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+
+------------------------------------------------------------------------------
+  function 00711B70   (1 locked)
+      00711B79  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+
+------------------------------------------------------------------------------
+  function 00720CF4   (1 locked)
+      00720D3B  load-cmp  je    mov eax, dword ptr [0x112d754]     base IV
+
+------------------------------------------------------------------------------
+  function 007BBB20   (1 locked)
+      007BBB79  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 007BCB70   (1 locked)
+      007BCB75  cmp-imm   jne   cmp dword ptr [0x112d788], 0       base IV
+
+------------------------------------------------------------------------------
+  function 007BD1C0   (1 locked)
+      007BD26B  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
+
+------------------------------------------------------------------------------
+  function 007C1330   (1 locked)
+      007C19C7  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 007C1B30   (1 locked)
+      007C1BCA  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 007C1D61   (1 locked)
+      strings: ~PAD_UP~ / ~PAD_DOWN~ / ~PAD_LEFT~ / ~PAD_RIGHT~ / ~PAD_DPAD_ALL~
+      007C1E16  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 007C5D00   (1 locked)
+      strings: PLS_NONE / FO_TWO_NUM / FO_NUM
+      007C5E56  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+
+------------------------------------------------------------------------------
+  function 007C94E8   (2 locked)
+      007C94FC  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
+      007C9505  cmp-imm   jne   cmp dword ptr [0x112d788], 0       base IV
+
+------------------------------------------------------------------------------
+  function 007DADC0   (2 locked)
+      strings: pc\data / e1:/pc/data / e2:/pc/data / Videos\Clips
+      007DADD1  load-cmp  jne   mov eax, dword ptr [0x112d754]     base IV
+      007DADEA  load-cmp  jne   mov eax, dword ptr [0x112d754]     base IV
+
+------------------------------------------------------------------------------
+  function 007DAEC0   (2 locked)
+      strings: pc\data / e1:/pc/data / e2:/pc/data / Videos\Clips
+      007DAED8  load-cmp  jne   mov eax, dword ptr [0x112d754]     base IV
+      007DAEF1  load-cmp  jne   mov eax, dword ptr [0x112d754]     base IV
+
+------------------------------------------------------------------------------
+  function 007F0391   (2 locked)
+      007F03CD  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      007F045E  cmp-imm   jle   cmp dword ptr [0x112d754], 0       base IV
+
+------------------------------------------------------------------------------
+  function 007F0A80   (1 locked)
+      007F0AC0  cmp-imm   je    cmp dword ptr [0x112d754], 0       base IV
+
+------------------------------------------------------------------------------
+  function 007F16B0   (1 locked)
+      strings: e2_int
+      007F16CB  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 007F19D0   (2 locked)
+      007F19FD  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+      007F1A3A  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 007F1F40   (1 locked)
+      007F1F9A  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 0080FF1E   (1 locked)
+      0080FF50  cmp-reg   je    cmp dword ptr [0x112d754], ebx     TBoGT
+
+------------------------------------------------------------------------------
+  function 00824770   (1 locked)
+      0082479F  cmp-imm   jne   cmp dword ptr [0x112d788], 1       TLAD
+
+------------------------------------------------------------------------------
+  function 00836095   (1 locked)
+      strings: REVERB_WET_TO_SHOUTED_ECHO_VOLUME / BUILT_UP_TO_SHOUTED_ECHO_VOLUME / GLOBAL_SPEECH_ROLLOFF_%.2d / GLOBAL_SPEECH
+      0083614C  load-cmp  jne   mov eax, dword ptr [0x112d788]     TLAD
+
+------------------------------------------------------------------------------
+  function 00837790   (1 locked)
+      00837790  cmp-imm   sete  cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 0084A8E0   (1 locked, 1 already opened)
+      strings: cj_cone / cj_cylinder / _ICON / CJ_ARROW_ICON / CJ_ARROW_ICON_2
+      opened : 0084AA71  cmp dword ptr [0x112d788], 2       <- E2_Landing marker request model #3
+      0084A99E  load-cmp  -     mov eax, dword ptr [0x112d788]     TBoGT
+
+------------------------------------------------------------------------------
+  function 00850EF0   (1 locked, 1 already opened)
+      opened : 00850F03  cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (BUZZARD) weapon effects
+      00850F9E  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00852A90   (1 locked)
+      strings: LINEAR_RISE / GENERAL_WEAPONS_NEARFIELD_ROCKET_LOOP_BUZZARD / GENERAL_WEAPONS_NEARFIELD_ROCKET_LOOP
+      008530FA  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00856270   (2 locked)
+      strings: Rockstar Games\GTA IV\ / Rockstar Games\TLaD\ / Rockstar Games\TBoGT\
+      0085628C  load-cmp  jne   mov eax, dword ptr [0x112d788]     value not resolved
+      0085633D  load-cmp  jne   mov eax, dword ptr [0x112d788]     value not resolved
+
+------------------------------------------------------------------------------
+  function 00856C6C   (3 locked)
+      strings: Rockstar Games\GTA IV\ / Rockstar Games\TLaD\ / Rockstar Games\TBoGT\ / Rockstar Games\RGSC\
+      00856CA7  load-cmp  jne   mov eax, dword ptr [0x112d788]     value not resolved
+      00856D42  load-cmp  jne   mov eax, dword ptr [0x112d788]     value not resolved
+      00856E40  load-cmp  jne   mov eax, dword ptr [0x112d788]     value not resolved
+
+------------------------------------------------------------------------------
+  function 00857C90   (1 locked)
+      strings: EPISODE / ITBEG
+      00857CB9  load-cmp  jle   mov ebp, dword ptr [0x112d754]     base IV
+
+------------------------------------------------------------------------------
+  function 0085B4A0   (1 locked)
+      0085B4FA  cmp-reg   je    cmp dword ptr [0x112d754], eax     value not resolved
+
+------------------------------------------------------------------------------
+  function 0085C390   (1 locked)
+      0085C3E1  load-cmp  jle   mov eax, dword ptr [0x112d788]     base IV
+
+------------------------------------------------------------------------------
+  function 00861E50   (1 locked)
+      00862475  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+
+------------------------------------------------------------------------------
+  function 0086A980   (1 locked)
+      strings: common:/DATA/HUDCOLOR.DAT
+      0086AB57  load-cmp  jne   mov eax, dword ptr [0x112d788]     TLAD
+
+------------------------------------------------------------------------------
+  function 0086B000   (1 locked)
+      0086B0B1  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 0086B400   (2 locked)
+      0086B468  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      0086B4E9  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 0086C3B0   (1 locked)
+      0086C3CD  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 0086DE70   (9 locked)
+      0086DEB1  cmp-reg   jne   cmp dword ptr [0x112d754], ebx     TBoGT
+      0086DF41  cmp-reg   jne   cmp dword ptr [0x112d754], ecx     value not resolved
+      0086E086  cmp-reg   jl    cmp dword ptr [0x112d754], ecx     value not resolved
+      0086E0B6  cmp-reg   jl    cmp dword ptr [0x112d754], ecx     value not resolved
+      0086E0E5  cmp-reg   jl    cmp dword ptr [0x112d754], ecx     value not resolved
+      0086E115  cmp-imm   je    cmp dword ptr [0x112d754], 0       base IV
+      0086E146  cmp-reg   jl    cmp dword ptr [0x112d754], ecx     value not resolved
+      0086E197  cmp-reg   jl    cmp dword ptr [0x112d754], ecx     value not resolved
+      0086E1C0  cmp-reg   jl    cmp dword ptr [0x112d754], ebx     value not resolved
+
+------------------------------------------------------------------------------
+  function 008705E7   (1 locked)
+      00870645  cmp-imm   je    cmp dword ptr [0x112d754], 0       base IV
+
+------------------------------------------------------------------------------
+  function 00886030   (1 locked)
+      strings: common:/DATA/FONTS.DAT / common:/DATA/FONTS_R.DAT / common:/DATA/FONTS_J.DAT / [BUTTONS] / [RADAR_BLIP]
+      00886236  cmp-imm   jne   cmp dword ptr [0x112d788], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00887A70   (1 locked)
+      00887AAA  cmp-imm   jne   cmp dword ptr [0x112d788], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00887CCF   (1 locked)
+      strings: font4 / RSTICK_ROTATE / streamedfont / platform:/textures/fonts_streamed_1 / font2
+      00887D29  cmp-imm   jne   cmp dword ptr [0x112d788], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 0088BE51   (2 locked)
+      0088BEF8  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+      0088BFBA  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+
+------------------------------------------------------------------------------
+  function 008915E1   (1 locked)
+      00891687  load-cmp  jg    mov eax, dword ptr [0x112d754]     base IV
+
+------------------------------------------------------------------------------
+  function 00894FD8   (1 locked)
+      strings: common:/DATA/RadioLogo.DAT / [CRT]
+      00895011  cmp-imm   je    cmp dword ptr [0x112d788], 0       base IV
+
+------------------------------------------------------------------------------
+  function 008A1FB6   (18 locked)
+      008A1FDE  cmp-reg   je    cmp dword ptr [0x112d754], esi     value not resolved
+      008A1FE6  cmp-reg   je    cmp dword ptr [0x112d788], esi     value not resolved
+      008A213D  cmp-reg   je    cmp dword ptr [0x112d754], eax     TBoGT
+      008A2145  cmp-reg   jne   cmp dword ptr [0x112d788], eax     TBoGT
+      008A23DA  cmp-reg   je    cmp dword ptr [0x112d754], ebx     value not resolved
+      008A23F6  cmp-reg   je    cmp dword ptr [0x112d788], ebx     value not resolved
+      008A2512  cmp-reg   je    cmp dword ptr [0x112d754], ebx     value not resolved
+      008A251E  cmp-reg   je    cmp dword ptr [0x112d788], ebx     value not resolved
+      008A28EE  cmp-reg   je    cmp dword ptr [0x112d754], ebx     value not resolved
+      008A28F6  cmp-reg   je    cmp dword ptr [0x112d788], ebx     value not resolved
+      008A29B8  cmp-reg   je    cmp dword ptr [0x112d754], ebx     value not resolved
+      008A29C0  cmp-reg   jne   cmp dword ptr [0x112d788], ebx     value not resolved
+      008A2A6E  cmp-reg   je    cmp dword ptr [0x112d754], eax     TBoGT
+      008A2A98  cmp-reg   je    cmp dword ptr [0x112d788], eax     TBoGT
+      008A2B65  cmp-reg   je    cmp dword ptr [0x112d754], eax     TBoGT
+      008A2B6D  cmp-reg   jne   cmp dword ptr [0x112d788], eax     TBoGT
+      008A2BB0  cmp-reg   je    cmp dword ptr [0x112d754], ebx     TBoGT
+      008A2BB8  cmp-reg   jne   cmp dword ptr [0x112d788], ebx     TBoGT
+
+------------------------------------------------------------------------------
+  function 008AC440   (3 locked)
+      strings: fff?
+      008AC685  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      008ACB7C  cmp-reg   jne   cmp dword ptr [0x112d754], ebx     value not resolved
+      008ACC70  cmp-reg   jne   cmp dword ptr [0x112d754], ebx     value not resolved
+
+------------------------------------------------------------------------------
+  function 008ACE6D   (3 locked)
+      strings: FRONTEND_OTHER_INFO
+      008AD0ED  load-cmp  jne   mov eax, dword ptr [0x112d754]     TBoGT
+      008AD2C9  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+      008AD42F  cmp-reg   jne   cmp dword ptr [0x112d754], ebx     value not resolved
+
+------------------------------------------------------------------------------
+  function 008AE650   (1 locked)
+      008AE776  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
+
+------------------------------------------------------------------------------
+  function 008B0B80   (1 locked)
+      008B0BA1  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+
+------------------------------------------------------------------------------
+  function 008B15E0   (1 locked)
+      008B1623  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 008B40F0   (1 locked)
+      008B410F  cmp-imm   jne   cmp dword ptr [0x112d788], 1       TLAD
+
+------------------------------------------------------------------------------
+  function 008D9920   (2 locked)
+      008D9A89  load-cmp  -     mov ecx, dword ptr [0x112d754]     value not resolved
+      008D9A8F  cmp-reg   -     cmp ecx, dword ptr [0x112d788]     value not resolved
+
+------------------------------------------------------------------------------
+  function 008DE100   (1 locked)
+      008DE1D1  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 008DE220   (1 locked)
+      008DE284  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 008DF0B0   (2 locked)
+      strings: model
+      008DF191  cmp-imm   jge   cmp dword ptr [0x112d754], 1       TLAD
+      008DF19A  cmp-imm   jl    cmp dword ptr [0x112d788], 1       TLAD
+
+------------------------------------------------------------------------------
+  function 008E7C50   (1 locked)
+      008E7C5C  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 008E8C40   (1 locked)
+      008E8D17  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 008EF650   (1 locked)
+      008EF659  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 008FE960   (2 locked)
+      008FEC0C  cmp-reg   jl    cmp dword ptr [0x112d754], edi     TBoGT
+      008FEC40  cmp-reg   jl    cmp dword ptr [0x112d754], edi     TBoGT
+
+------------------------------------------------------------------------------
+  function 008FFAD3   (1 locked)
+      008FFC44  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00931360   (1 locked)
+      0093138E  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+
+------------------------------------------------------------------------------
+  function 00931480   (1 locked)
+      009314D0  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+
+------------------------------------------------------------------------------
+  function 00932520   (1 locked)
+      00932526  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+
+------------------------------------------------------------------------------
+  function 009325E8   (1 locked)
+      009326A0  cmp-reg   jne   cmp dword ptr [0x112d788], ebx     TLAD
+
+------------------------------------------------------------------------------
+  function 009381D0   (1 locked)
+      009382A1  cmp-imm   jge   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 0093B810   (1 locked)
+      0093B82C  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 009405FF   (1 locked)
+      009406C6  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00944300   (1 locked)
+      strings: amb@payphone
+      00944509  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 0094BBB0   (1 locked)
+      0094BBBD  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+
+------------------------------------------------------------------------------
+  function 009502A0   (1 locked)
+      009503B8  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+
+------------------------------------------------------------------------------
+  function 00969260   (1 locked)
+      0096933B  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00988A80   (1 locked)
+      00988AE5  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00988BE0   (1 locked)
+      00988C2E  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00989100   (1 locked)
+      strings: fff>
+      009891ED  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00989CB0   (1 locked)
+      00989CEE  cmp-imm   jne   cmp dword ptr [0x112d788], 1       TLAD
+
+------------------------------------------------------------------------------
+  function 0098A480   (1 locked)
+      0098A535  cmp-reg   jne   cmp dword ptr [0x112d754], edi     value not resolved
+
+------------------------------------------------------------------------------
+  function 0098CE20   (1 locked)
+      0098CF03  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 009916F0   (3 locked)
+      strings: BUTTOCKS / ON_FIRE
+      0099176C  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00991B57  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00991CE5  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 009937A0   (1 locked)
+      00993B38  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 009968A0   (1 locked)
+      00996918  cmp-imm   -     cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 009982F0   (2 locked)
+      009982F9  cmp-imm   -     cmp dword ptr [0x112d754], 2       TBoGT
+      009983BE  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00998880   (1 locked)
+      009988FC  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 0099A910   (1 locked)
+      0099A942  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 0099AB00   (1 locked)
+      0099AB2B  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 0099E730   (1 locked)
+      0099E73C  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 0099EFA0   (1 locked)
+      0099EFAF  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 009A0990   (1 locked)
+      009A0990  cmp-imm   je    cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 009A1800   (1 locked)
+      009A1800  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 009A2CF0   (1 locked)
+      009A2CFE  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 009A6500   (1 locked)
+      strings: CHEAT1 / ACHBLOCKED1B / ACHBLOCKED1C / ACHBLOCKED1E / ACHBLOCKED1F
+      009A654E  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
+
+------------------------------------------------------------------------------
+  function 009A6AA0   (1 locked)
+      009A6AA6  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 009B2BE0   (4 locked)
+      009B2D2F  cmp-reg   setne cmp dword ptr [0x112d754], edi     value not resolved
+      009B2DF9  cmp-imm   setne cmp dword ptr [0x112d754], 2       TBoGT
+      009B2E20  cmp-imm   setne cmp dword ptr [0x112d754], 2       TBoGT
+      009B2E3F  cmp-imm   setne cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 009B72D0   (1 locked)
+      009B734A  cmp-reg   jne   cmp dword ptr [0x112d754], ecx     TLAD
+
+------------------------------------------------------------------------------
+  function 009BDB10   (2 locked)
+      009BDBC8  load-cmp  jne   mov eax, dword ptr [0x112d754]     UNSHIPPED EPISODE 3
+      009BDF30  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+
+------------------------------------------------------------------------------
+  function 009C91C0   (2 locked)
+      009C91F8  cmp-imm   jge   cmp dword ptr [0x112d754], 2       TBoGT
+      009C92D6  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 009CE171   (1 locked)
+      009CE21E  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 009CE870   (1 locked)
+      009CE9D2  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 009D0190   (1 locked)
+      009D0488  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 009D0B80   (1 locked, 1 already opened)
+      opened : 009D0BD0  cmp dword ptr [0x112d754], 2       <- Sticky bomb
+      009D0D0B  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 009D1EDF   (1 locked)
+      009D1F52  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 009D3670   (1 locked)
+      strings: HitReaction / none
+      009D3B79  load-cmp  jne   mov eax, dword ptr [0x112d754]     TLAD
+
+------------------------------------------------------------------------------
+  function 009D5D50   (2 locked)
+      009D62E8  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      009D6353  cmp-reg   jne   cmp dword ptr [0x112d754], eax     value not resolved
+
+------------------------------------------------------------------------------
+  function 009DD3D0   (2 locked)
+      009DD427  load-cmp  je    mov eax, dword ptr [0x112d788]     value not resolved
+      009DD48E  cmp-reg   jne   cmp dword ptr [0x112d754], ebx     value not resolved
+
+------------------------------------------------------------------------------
+  function 009E681E   (1 locked)
+      strings: speed
+      009E6A8E  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 009FAD50   (1 locked)
+      009FAF5E  load-cmp  je    mov eax, dword ptr [0x112d754]     TLAD
+
+------------------------------------------------------------------------------
+  function 009FC602   (1 locked)
+      009FCC08  load-cmp  je    mov eax, dword ptr [0x112d754]     TLAD
+
+------------------------------------------------------------------------------
+  function 00A35250   (1 locked)
+      strings: open_cred.srl
+      00A3526F  cmp-imm   jne   cmp dword ptr [0x112d788], 1       TLAD
+
+------------------------------------------------------------------------------
+  function 00A503E0   (1 locked)
+      00A504DA  cmp-imm   je    cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+
+------------------------------------------------------------------------------
+  function 00A5A580   (1 locked)
+      00A5A63E  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00A5BEE0   (1 locked)
+      00A5C130  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00A5E098   (1 locked)
+      00A5E0DF  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00A602D5   (1 locked)
+      00A607C6  cmp-imm   jge   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00A608C0   (1 locked)
+      00A6094B  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00A61140   (1 locked)
+      00A61140  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00A61E06   (1 locked)
+      00A61EA0  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00A63850   (1 locked)
+      00A638A7  cmp-reg   jne   cmp dword ptr [0x112d754], edi     TBoGT
+
+------------------------------------------------------------------------------
+  function 00A73430   (1 locked)
+      00A73430  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00A76440   (1 locked)
+      00A76499  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00A79B50   (2 locked)
+      00A79B7F  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+      00A79B9D  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00A79F2E   (1 locked)
+      00A79F7F  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00A7BF60   (1 locked)
+      00A7BFA9  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00A7C8E0   (1 locked)
+      00A7C942  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00A80C74   (1 locked)
+      00A80DC7  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00A842A7   (1 locked)
+      00A842F7  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+
+------------------------------------------------------------------------------
+  function 00A85E10   (1 locked)
+      00A85EC8  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00A996B1   (1 locked)
+      00A996BB  cmp-imm   -     cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00A9B64A   (2 locked)
+      00A9B6DE  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00A9B948  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00A9F490   (1 locked)
+      00A9F533  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+
+------------------------------------------------------------------------------
+  function 00AA2CB1   (1 locked)
+      00AA3110  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+
+------------------------------------------------------------------------------
+  function 00AA6380   (1 locked)
+      00AA65BF  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00AAE9EC   (1 locked)
+      strings: ff&?basic_string
+      00AAEEC5  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00AB2640   (1 locked)
+      strings: GANG_WEAPON_WARNING
+      00AB2643  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+
+------------------------------------------------------------------------------
+  function 00AB31F0   (1 locked)
+      strings: fff?
+      00AB32DB  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+
+------------------------------------------------------------------------------
+  function 00AB3EC0   (1 locked)
+      strings: OVER_HANDLEBARS
+      00AB3FA5  cmp-reg   jl    cmp dword ptr [0x112d754], ebx     value not resolved
+
+------------------------------------------------------------------------------
+  function 00ACD080   (1 locked)
+      00ACD080  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+
+------------------------------------------------------------------------------
+  function 00AD2AD0   (1 locked)
+      00AD2B0B  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00AE7B31   (2 locked)
+      00AE7EA0  cmp-reg   jge   cmp dword ptr [0x112d788], eax     TBoGT
+      00AE7EA8  cmp-reg   jge   cmp dword ptr [0x112d754], eax     TBoGT
+
+------------------------------------------------------------------------------
+  function 00AEFB90   (1 locked)
+      strings: common:/DATA/CREDITS_PC.DAT / common:/DATA/CREDITS.DAT
+      00AEFB9A  cmp-reg   jle   cmp dword ptr [0x112d754], ebx     value not resolved
+
+------------------------------------------------------------------------------
+  function 00AF0450   (2 locked, 1 already opened)
+      strings: water_boat_propellor_e2 / water_boat_propellor / speed / depth / reverse
+      opened : 00AF0714  cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport Boat models #1
+      00AF04EB  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00AF0785  cmp-imm   -     cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00AF2F50   (2 locked, 1 already opened)
+      strings: water_boat_bow_e2 / water_boat_rev_e2 / water_boat_bow / water_boat_rev / speed
+      opened : 00AF330C  cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport Boat models #2
+      00AF2FA8  cmp-imm   -     cmp dword ptr [0x112d754], 2       TBoGT
+      00AF3358  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00AF3388   (2 locked, 1 already opened)
+      strings: water_boat_rev_e2 / water_boat_bow / water_boat_rev / water_boat_wash_e2 / water_boat_wash
+      opened : 00AF3686  cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport Boat models #2
+      00AF3472  cmp-imm   -     cmp dword ptr [0x112d754], 2       TBoGT
+      00AF36D2  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00AF3740   (2 locked, 1 already opened)
+      strings: water_boat_entry_e2 / water_boat_entry / speed / fff?
+      opened : 00AF3938  cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport Boat models #4
+      00AF3792  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00AF397C  cmp-imm   -     cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00AF7F50   (1 locked)
+      00AF7F65  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00B14190   (1 locked)
+      00B14228  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00B1D870   (1 locked)
+      00B1D8CB  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00B20E80   (1 locked)
+      00B20EB7  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00B39E00   (1 locked)
+      00B39E26  load-cmp  jne   mov eax, dword ptr [0x112d754]     UNSHIPPED EPISODE 3
+
+------------------------------------------------------------------------------
+  function 00B39E90   (1 locked)
+      00B39E93  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+
+------------------------------------------------------------------------------
+  function 00B432D0   (1 locked)
+      00B43301  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+
+------------------------------------------------------------------------------
+  function 00B70660   (2 locked)
+      strings: common:/data/default.dat / update:/update.img
+      00B706B7  cmp-reg   jne   cmp dword ptr [0x112d788], esi     TBoGT
+      00B7071B  cmp-reg   jne   cmp dword ptr [0x112d788], esi     value not resolved
+
+------------------------------------------------------------------------------
+  function 00B957F0   (1 locked)
+      00B95A68  cmp-reg   jl    cmp dword ptr [0x112d754], ecx     TBoGT
+
+------------------------------------------------------------------------------
+  function 00B96940   (1 locked)
+      00B969BC  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00B96EA0   (1 locked)
+      00B96EAD  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00B9F7E0   (1 locked)
+      00B9F81F  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00BA0261   (1 locked)
+      00BA0335  load-cmp  jne   mov eax, dword ptr [0x112d754]     TBoGT
+
+------------------------------------------------------------------------------
+  function 00BA0FD7   (1 locked)
+      00BA1000  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00BAEE10   (1 locked)
+      strings: GREET_JOHNNY
+      00BAEE19  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+
+------------------------------------------------------------------------------
+  function 00BB4ED5   (1 locked)
+      00BB4F40  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+
+------------------------------------------------------------------------------
+  function 00BB8920   (1 locked)
+      00BB8A9A  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+
+------------------------------------------------------------------------------
+  function 00BBC700   (1 locked)
+      00BBC7BC  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00BBE470   (1 locked)
+      00BBE51D  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00BC5F30   (1 locked)
+      00BC60FA  cmp-reg   jl    cmp dword ptr [0x112d754], ecx     TBoGT
+
+------------------------------------------------------------------------------
+  function 00BCB8B0   (1 locked, 1 already opened)
+      strings: still / veh@bike_freeway
+      opened : 00BCB925  cmp dword ptr [0x112d754], eax     <- BikeFeetFix
+      00BCBC07  cmp-imm   jl    cmp dword ptr [0x112d754], 1       TLAD
+
+------------------------------------------------------------------------------
+  function 00BDC13D   (1 locked)
+      00BDC47C  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00BE99B0   (1 locked)
+      strings: fff?
+      00BE9A8F  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00BF24D0   (2 locked)
+      00BF2602  cmp-imm   jge   cmp dword ptr [0x112d754], 2       TBoGT
+      00BF2672  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00BF3A60   (1 locked)
+      00BF3A82  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00C0EC80   (1 locked)
+      00C0ECC8  cmp-imm   jle   cmp dword ptr [0x112d754], 0       base IV
+
+------------------------------------------------------------------------------
+  function 00C104E0   (1 locked)
+      00C104E0  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00C11620   (1 locked)
+      00C116E2  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00C1A9A1   (1 locked)
+      00C1A9B2  cmp-reg   jne   cmp dword ptr [0x112d754], ebx     TBoGT
+
+------------------------------------------------------------------------------
+  function 00C1E820   (1 locked)
+      00C1E896  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+
+------------------------------------------------------------------------------
+  function 00C21EA0   (1 locked)
+      00C21ECF  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00C23A20   (1 locked)
+      00C23AC3  cmp-imm   jne   cmp dword ptr [0x112d754], 3       UNSHIPPED EPISODE 3
+
+------------------------------------------------------------------------------
+  function 00C23E05   (2 locked)
+      strings: FIGHT_RUN
+      00C23F5F  cmp-reg   jne   cmp dword ptr [0x112d754], edi     TLAD
+      00C23FBC  cmp-reg   jne   cmp dword ptr [0x112d754], edi     value not resolved
+
+------------------------------------------------------------------------------
+  function 00C2B200   (1 locked)
+      00C2B260  cmp-reg   jne   cmp dword ptr [0x112d754], ebx     TBoGT
+
+------------------------------------------------------------------------------
+  function 00C2DD30   (2 locked)
+      00C2DDC2  cmp-imm   je    cmp dword ptr [0x112d754], 2       TBoGT
+      00C2DE75  cmp-reg   jne   cmp dword ptr [0x112d754], ecx     TBoGT
+
+------------------------------------------------------------------------------
+  function 00C3549A   (1 locked)
+      00C35776  cmp-imm   jge   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00C3DABC   (1 locked)
+      00C3DDB5  cmp-reg   je    cmp dword ptr [0x112d754], eax     TBoGT
+
+------------------------------------------------------------------------------
+  function 00C3FE00   (1 locked)
+      00C3FF33  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00C6C75F   (1 locked)
+      00C6CA62  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00C6D9F6   (2 locked)
+      strings: iler 9.26.952.2844
+      00C6DAB5  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+      00C6DC8A  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00C6F2A3   (1 locked)
+      00C6F30F  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00C78300   (1 locked)
+      00C78389  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00C7B988   (1 locked)
+      00C7BB57  cmp-reg   jl    cmp dword ptr [0x112d754], edx     TBoGT
+
+------------------------------------------------------------------------------
+  function 00C7FCD0   (1 locked)
+      00C7FD14  cmp-imm   jl    cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00C899D0   (1 locked)
+      00C89A61  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00C8C2A0   (1 locked)
+      00C8C4BD  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00C9A640   (1 locked)
+      00C9A84B  cmp-imm   jle   cmp dword ptr [0x112d754], 0       base IV
+
+------------------------------------------------------------------------------
+  function 00C9F880   (1 locked)
+      strings: corona / coronas
+      00C9FF04  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00CB46D0   (1 locked)
+      00CB4771  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00CB5A66   (1 locked)
+      00CB5E7F  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00CBE380   (2 locked)
+      strings: fff?
+      00CBE451  cmp-reg   jne   cmp dword ptr [0x112d754], ebp     TBoGT
+      00CBE708  cmp-reg   jne   cmp dword ptr [0x112d754], ebp     value not resolved
+
+------------------------------------------------------------------------------
+  function 00CBE910   (1 locked)
+      00CBEB4F  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00CC18D0   (1 locked)
+      strings: GANG_CHASE
+      00CC1AC1  cmp-reg   jne   cmp dword ptr [0x112d754], ecx     TLAD
+
+------------------------------------------------------------------------------
+  function 00CC38B0   (2 locked)
+      strings: USJA / USJ_ALL / USJ_1LEFT / USJ_LEFT / USJFAILA
+      00CC396E  cmp-reg   jne   cmp dword ptr [0x112d754], esi     value not resolved
+      00CC3EA7  cmp-imm   jne   cmp dword ptr [0x112d754], 0       base IV
+
+------------------------------------------------------------------------------
+  function 00CCB270   (1 locked)
+      strings: CTaskComplexShockingEventWatch / SURPRISED / SHOCKED / GANG_FIGHT_CHEER / FIGHT_CHEER
+      00CCB44D  cmp-imm   jne   cmp dword ptr [0x112d754], 1       TLAD
+
+------------------------------------------------------------------------------
+  function 00CCBBA0   (1 locked)
+      strings: SURPRISED / SHOCKED / SHIT
+      00CCBBF3  cmp-reg   jne   cmp dword ptr [0x112d754], edi     TLAD
+
+------------------------------------------------------------------------------
+  function 00CE4090   (1 locked)
+      00CE41F3  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00D3B7A0   (1 locked)
+      00D3B872  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00D3B900   (1 locked)
+      00D3B9B5  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00D3C760   (1 locked)
+      strings: STATS_NET_I_PC
+      00D3C915  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+------------------------------------------------------------------------------
+  function 00D41E10   (1 locked)
+      strings: platform:/textures/leaderboards / NetStatsIcons
+      00D41FA5  cmp-reg   je    cmp dword ptr [0x112d754], ebp     base IV
+
+------------------------------------------------------------------------------
+  function 00D420F1   (1 locked)
+      strings: update:pc/textures/Leaderboards.xtd
+      00D42135  cmp-reg   jne   cmp dword ptr [0x112d788], ebp     value not resolved
+
+------------------------------------------------------------------------------
+  function 00D46FF0   (1 locked)
+      strings: MO_BENCH_ENDED
+      00D472DB  cmp-imm   jne   cmp dword ptr [0x112d754], 2       TBoGT
+
+##############################################################################
+#  SECTION 4 - GATES TACEPATCH ALREADY OPENS   (93)
+##############################################################################
+
+  0049503E  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- Parachute anims
+  0049F18C  D754  cmp-reg   cmp dword ptr [0x112d754], ebp     <- PoliceEpisodicWeaponSupport
+  004A6F1E  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- Sticky bomb drop icon
+  004A6F47  D754  cmp-imm   cmp dword ptr [0x112d754], 0       <- PipeBombDropIconSupport
+  004A86EE  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (APC) #3
+  004A9D3A  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- dsr1
+  004AB7C0  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- dsr1 hud
+  006EA031  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- Sticky bomb mp sync
+  006F20C4  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- Parachute #1
+  0071C81A  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (APC) #5
+  007BBDAC  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- parachute wind sounds / explosive weapons networking
+  00801031  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (APC) sounds
+  00801273  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (BUZZARD) sounds
+  00802E02  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- Weapon sounds sub_B5D970
+  00802EC7  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- GRENADE_EXPLOSION sub_B5D970
+  00803005  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- SHOTGUN_EXPLOSION sub_B5D970
+  00803035  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- APC_EXPLOSION sub_B5D970
+  00835771  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (APC) #4
+  0084AA71  D788  cmp-imm   cmp dword ptr [0x112d788], 2       <- E2_Landing marker request model #3
+  0084BB59  D754  cmp-reg   cmp dword ptr [0x112d754], edi     <- E2_Landing marker Enable
+  00850F03  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (BUZZARD) weapon effects
+  00853CDA  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- Grenade launcher explode on impact
+  00859240  D788  cmp-imm   cmp dword ptr [0x112d788], 2       <- Check if player had a parachute
+  0085AA8B  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- Check for parachute during savegame #2
+  0085AC4A  D788  cmp-imm   cmp dword ptr [0x112d788], 2       <- Check for parachute during savegame #1
+  008D9F4A  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- E2 stats check #2
+  008DA1A9  D788  cmp-imm   cmp dword ptr [0x112d788], 2       <- E2 stats check #1
+  008F0071  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- TBoGT heli height limit
+  008F531F  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (BUZZARD) #3
+  008FC61F  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (APC) #2
+  009465CA  D788  cmp-imm   cmp dword ptr [0x112d788], 2       <- Give parachute during load save
+  00965823  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (APC) respray
+  00965D30  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport APC & BUZZARD
+  00989974  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (APC) #6
+  0098C7E0  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- Sniper rifle checks #1
+  009900A6  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- weap checks #2
+  00994441  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- CExplosions__addExplosion
+  00994699  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- CExplosions__addExplosion disable ped rolling
+  00997768  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- weap checks #1
+  009C630C  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (BUZZARD) #1
+  009C64E8  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (BUZZARD) #2
+  009C8CD5  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- m249 for swat in annihilators and helicopters
+  009CC2D9  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- P90 scroll block
+  009CC5F2  D754  cmp-reg   cmp dword ptr [0x112d754], esi     <- P90 get in car block
+  009CD731  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- CPedWeapons__giveWeapon Explosive AA12
+  009D076D  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- BUZZARD rubble effects
+  009D0BD0  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- Sticky bomb
+  009D12D9  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- phone model change
+  009D20F4  D754  cmp-reg   cmp dword ptr [0x112d754], edi     <- exp aa12 & apc cannon
+  009D21D6  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- parachute wind sounds / explosive weapons networking
+  009D223E  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- Buzzards minigun
+  009D2277  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- Sniper rifle checks #1
+  009D22C9  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- Sniper rifle checks #2
+  009D22E9  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (BUZZARD) minigun #2
+  009D2461  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (BUZZARD) BULLET_IMPACT_WATER
+  009D2545  D754  cmp-imm   cmp dword ptr [0x112d754], 1       <- annihilator explosive shots
+  009D25D5  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- Explosive AA12 enabler
+  009D3131  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- weap checks? nearby explosive weapon checks
+  009DDE59  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- Parachute #3
+  009DF721  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- disco camera shake #2
+  009E4949  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport Boat models #5
+  009E53D5  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport Boats
+  009F21A9  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (APC) #9
+  00A530FD  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (APC) #1
+  00A537D4  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (BUZZARD & SWIFT)
+  00A61409  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- sticky bomb move disable
+  00A77525  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- disco camera shake #3
+  00A7A951  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (APC) #10
+  00A7B0AB  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport Floater camera
+  00A84ABC  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- parachute extended camera
+  00A85244  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- disco camera shake #1
+  00A9CF55  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (BUZZARD) #4
+  00AA704D  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (APC) #11
+  00AA7AF3  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- Sticky bomb faster throw in vehicle #1
+  00AA84A5  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- Sticky bomb faster throw in vehicle #2
+  00AA8700  D754  cmp-reg   cmp dword ptr [0x112d754], eax     <- Sticky bomb faster throw in vehicle #3
+  00AAAEA9  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- E2 Bullet traces
+  00AAD4F0  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- Sticky bomb something
+  00AADE32  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- CTaskComplexAimAndThrowProjectile::createNextSubTask
+  00AAE43F  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- CTaskSimplePlayerAimProjectile::process
+  00AAE8E2  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- CTaskSimpleThrowProjectile::process
+  00AF0714  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport Boat models #1
+  00AF330C  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport Boat models #2
+  00AF3686  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport Boat models #2
+  00AF3938  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport Boat models #4
+  00B15A20  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- ADD_GROUP_TO_NETWORK_RESTART_NODE_GROUP_LIST
+  00B20F3C  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- EpisodicVehicleSupport (APC) #12
+  00B67F1B  D754  cmp-imm   cmp dword ptr [0x112d754], 1       <- BikePhoneAnimsFix
+  00BCB925  D754  cmp-reg   cmp dword ptr [0x112d754], eax     <- BikeFeetFix
+  00C11A6B  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- explosive fists cheat
+  00C1A353  D754  cmp-imm   cmp dword ptr [0x112d754], 2       <- TBoGT counter anims fix #1
+  00C1AB57  D754  cmp-reg   cmp dword ptr [0x112d754], ebx     <- TBoGT counter anims fix #2
+  00D49B09  D754  cmp-reg   cmp dword ptr [0x112d754], esi     <- EpisodicVehicleSupport Altimeter
+
+##############################################################################
+#  SECTION 5 - NON-BRANCH REFERENCES   (94)
+#  Not gates. Stored, passed as an argument, or used as an ARRAY INDEX - the
+#  last selects per-episode data with no branch to NOP at all, and is the one
+#  shape this whole approach cannot address.
+##############################################################################
+
+  00478195  D754  load        mov ecx, dword ptr [0x112d754]     | Benchmark%02d%02d%02d%02d%02d%02d.txt / Benchmarks / MO_SAVE_RESULTS / MO_FILEID
+  0047828A  D754  load        mov edx, dword ptr [0x112d754]     | UIParent / BenchmarkFrame
+  0047C3B3  D754  load        mov edx, dword ptr [0x112d754]     | .cli / %s.cli / UIParent / UIMouseCursor
+  0047C4E1  D754  load        mov edx, dword ptr [0x112d754]     | MO_BENCH_TEST
+  0047CD1B  D754  load        mov edx, dword ptr [0x112d754]     
+  0047CD27  D76C  store       mov dword ptr [0x112d76c], edx     
+  0047DE12  D754  load-index  mov ecx, dword ptr [0x112d754]     | MO_RPYQUIT / MO_UPLOAD_WARN / UIUpload / MO_TBENCHWARN
+  0047DE1F  D76C  store       mov dword ptr [0x112d76c], ecx     | MO_RPYQUIT / MO_UPLOAD_WARN / UIUpload / MO_TBENCHWARN
+  0047ECF2  D754  load        mov ecx, dword ptr [0x112d754]     
+  0047ECF8  D76C  store       mov dword ptr [0x112d76c], ecx     
+  0048052A  D754  load        mov eax, dword ptr [0x112d754]     
+  00480536  D76C  store       mov dword ptr [0x112d76c], eax     
+  004809EB  D788  store       mov dword ptr [0x112d788], edi     | UIScreen
+  0048BCBB  D754  load        mov esi, dword ptr [0x112d754]     
+  0048C7DC  D754  load        mov esi, dword ptr [0x112d754]     
+  0048D9BC  D754  load        mov ecx, dword ptr [0x112d754]     
+  0048DBC1  D754  load        mov eax, dword ptr [0x112d754]     
+  0048DC10  D754  load        mov ebx, dword ptr [0x112d754]     
+  0048DC2B  D754  load        mov ecx, dword ptr [0x112d754]     
+  0048DC53  D754  load        mov eax, dword ptr [0x112d754]     
+  0048DCB2  D754  load        mov eax, dword ptr [0x112d754]     
+  0048DCD6  D754  load        mov eax, dword ptr [0x112d754]     
+  0048DCF6  D754  load        mov eax, dword ptr [0x112d754]     
+  00490581  D788  store       mov dword ptr [0x112d788], esi     
+  00490587  D76C  store       mov dword ptr [0x112d76c], esi     
+  00493E20  D788  load        mov eax, dword ptr [0x112d788]     
+  00493E27  D754  load        mov edi, dword ptr [0x112d754]     
+  00493E2D  D754  store       mov dword ptr [0x112d754], eax     
+  004941DC  D788  store       mov dword ptr [0x112d788], edi     | FE_NODLC3 / FE_NODLC2
+  0049425B  D754  load        mov eax, dword ptr [0x112d754]     | FE_NODLC3 / FE_NODLC2
+  004942A4  D788  store       mov dword ptr [0x112d788], ebx     | FE_NODLC3 / FE_NODLC2
+  00494622  D76C  store       mov dword ptr [0x112d76c], esi     
+  004946F0  D788  load        mov eax, dword ptr [0x112d788]     
+  004949E4  D76C  load        mov esi, dword ptr [0x112d76c]     
+  00494A47  D754  load        mov eax, dword ptr [0x112d754]     
+  00494A74  D76C  load        mov eax, dword ptr [0x112d76c]     
+  00494C5B  D754  load        mov eax, dword ptr [0x112d754]     
+  00494C60  D76C  store       mov dword ptr [0x112d76c], eax     
+  00494D96  D754  load        mov eax, dword ptr [0x112d754]     
+  004971C0  D754  load        mov ecx, dword ptr [0x112d754]     | platform:/textures/leaderboards / PLRankIcons / update:xbox360/textures/Leaderboards.xtd
+  004971DA  D754  load        mov edx, dword ptr [0x112d754]     | platform:/textures/leaderboards / PLRankIcons / update:xbox360/textures/Leaderboards.xtd
+  00498269  D754  load        mov ecx, dword ptr [0x112d754]     
+  004982AD  D754  load        mov eax, dword ptr [0x112d754]     
+  00498A70  D754  load        mov eax, dword ptr [0x112d754]     
+  00498E01  D754  load        mov edx, dword ptr [0x112d754]     
+  00498E50  D754  load        mov eax, dword ptr [0x112d754]     
+  0049A047  D754  load        mov eax, dword ptr [0x112d754]     
+  0049A0AA  D754  load        mov edx, dword ptr [0x112d754]     
+  0049A103  D754  load        mov eax, dword ptr [0x112d754]     
+  0049A286  D754  load        mov eax, dword ptr [0x112d754]     
+  0049A2BB  D754  load        mov eax, dword ptr [0x112d754]     
+  0049A2E6  D754  load        mov eax, dword ptr [0x112d754]     
+  0049A2F9  D754  load        mov eax, dword ptr [0x112d754]     
+  0049A330  D754  load        mov eax, dword ptr [0x112d754]     
+  0049A345  D754  load        mov eax, dword ptr [0x112d754]     
+  0049A357  D754  load        mov eax, dword ptr [0x112d754]     
+  0049A508  D754  load        mov eax, dword ptr [0x112d754]     
+  0049A55D  D754  load        mov eax, dword ptr [0x112d754]     
+  0049A697  D754  load        mov eax, dword ptr [0x112d754]     
+  0049A6CC  D754  load        mov eax, dword ptr [0x112d754]     
+  0049A6EE  D754  load        mov eax, dword ptr [0x112d754]     
+  0049A71C  D754  load        mov eax, dword ptr [0x112d754]     
+  0049A72B  D754  load        mov eax, dword ptr [0x112d754]     
+  0049A8A5  D754  load        mov eax, dword ptr [0x112d754]     
+  0049A8FD  D754  load        mov eax, dword ptr [0x112d754]     
+  0049AAA1  D754  load        mov eax, dword ptr [0x112d754]     
+  0049AAC6  D754  load        mov eax, dword ptr [0x112d754]     
+  0049AAF9  D754  load        mov eax, dword ptr [0x112d754]     
+  0049C39A  D788  load        mov ebx, dword ptr [0x112d788]     
+  006C64F1  D754  load        mov eax, dword ptr [0x112d754]     
+  007D4642  D788  push-arg    push 0x112d788                     | GameLogic
+  007D4665  D754  store       mov dword ptr [0x112d754], eax     | GameLogic
+  007D466F  D76C  store       mov dword ptr [0x112d76c], eax     | GameLogic
+  007D4679  D788  store       mov dword ptr [0x112d788], eax     | GameLogic
+  007E0445  D754  load        mov edx, dword ptr [0x112d754]     
+  00858260  D754  load        mov eax, dword ptr [0x112d754]     
+  00859493  D754  load        mov eax, dword ptr [0x112d754]     | SG_HDG_SAVE
+  0085C5BB  D788  store       mov dword ptr [0x112d788], eax     
+  0089154C  D754  load        mov eax, dword ptr [0x112d754]     
+  008916A1  D76C  store       mov dword ptr [0x112d76c], eax     
+  008916F3  D76C  store       mov dword ptr [0x112d76c], 0       
+  008D42FA  D788  store       mov dword ptr [0x112d788], eax     
+  008D42FF  D76C  store       mov dword ptr [0x112d76c], eax     
+  008D5BB8  D754  load        mov edx, dword ptr [0x112d754]     
+  009A2C62  D754  load        mov esi, dword ptr [0x112d754]     | NONE
+  009D98F8  D754  load        mov eax, dword ptr [0x112d754]     | .meta / Videos\Rendered / .wmv / gta4 / tbogt
+  00A79ACD  D754  load        mov eax, dword ptr [0x112d754]     
+  00A79B04  D754  load        mov eax, dword ptr [0x112d754]     
+  00B4340A  D754  load        mov esi, dword ptr [0x112d754]     
+  00B435CA  D754  load        mov edx, dword ptr [0x112d754]     
+  00B43629  D754  load        mov ecx, dword ptr [0x112d754]     
+  00B49BEE  D754  load        mov esi, dword ptr [0x112d754]     
+  00B4FA60  D754  load        mov eax, dword ptr [0x112d754]     
+  00B7BC9D  D754  load        mov ecx, dword ptr [0x112d754]     
+
+END

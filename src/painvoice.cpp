@@ -448,7 +448,7 @@ extern "C" int __cdecl PainVoice_PickSlot(void *audioEntity, int gameSlot)
         if (gTrace && gTraceLeft > 0)
         {
             gTraceLeft--;
-            TaceLog("[painvoice] pain: no ped on the audio entity, leaving slot %d", gameSlot);
+            TACE_TRACE("[painvoice] pain: no ped on the audio entity, leaving slot %d", gameSlot);
         }
         return gameSlot;
     }
@@ -501,13 +501,13 @@ extern "C" int __cdecl PainVoice_PickSlot(void *audioEntity, int gameSlot)
         gTraceLeft--;
         if (matched < 0)
         {
-            TaceLog("[painvoice] pain: model %d -> slot %d (game said %d, no configured voice)",
+            TACE_TRACE("[painvoice] pain: model %d -> slot %d (game said %d, no configured voice)",
                     model, chosen, gameSlot);
         }
         else
         {
             const ExtraSlot &s = gExtra[matched];
-            TaceLog("[painvoice] pain: model %d %s -> slot %d | live=%d state=%d resident=%d,%d"
+            TACE_TRACE("[painvoice] pain: model %d %s -> slot %d | live=%d state=%d resident=%d,%d"
                     " var=%u counters=%u,%u,%u,%u",
                     model, s.root.c_str(), chosen, s.curEntry, s.entry[s.curEntry].state,
                     s.resident[0] ? 1 : 0, s.resident[1] ? 1 : 0, s.variation,
@@ -591,7 +591,7 @@ int __fastcall PainVoice_ResolveVoice(void *self, void *, int voice, const char 
             if (gTrace && gTraceLeft > 0)
             {
                 gTraceLeft--;
-                TaceLog("[painvoice] extras: model %d context \"%s\" -> %s",
+                TACE_TRACE("[painvoice] extras: model %d context \"%s\" -> %s",
                         model, context, s.voiceNames[v].c_str());
             }
             return static_cast<int>(s.voiceHashes[v]);
@@ -605,7 +605,7 @@ int __fastcall PainVoice_ResolveVoice(void *self, void *, int voice, const char 
         if (gTrace && gTraceLeft > 0)
         {
             gTraceLeft--;
-            TaceLog("[painvoice] extras: model %d context \"%s\" -> silent"
+            TACE_TRACE("[painvoice] extras: model %d context \"%s\" -> silent"
                     " (none of %s / %s / %s has that line; generic suppressed)",
                     model, context, s.voiceNames[0].c_str(), s.voiceNames[1].c_str(),
                     s.voiceNames[2].c_str());
@@ -631,7 +631,7 @@ int __fastcall PainVoice_ResolveVoice(void *self, void *, int voice, const char 
         if (gTrace && gTraceLeft > 0)
         {
             gTraceLeft--;
-            TaceLog("[painvoice] extras: model %d context \"%s\" -> %s"
+            TACE_TRACE("[painvoice] extras: model %d context \"%s\" -> %s"
                     " (player is not the PLAYER model)",
                     model, context, male ? "PAIN_MALE_EXTRAS" : "PAIN_FEMALE_EXTRAS");
         }
@@ -724,8 +724,8 @@ void PainVoice_Init()
         return;
     }
 
-    gTrace     = TaceIniBool("PAINVOICE", "Debug", false);
-    gTraceLeft = gTrace ? 200 : 0;
+    gTrace     = TaceTraceEnabled("painvoice", "PAINVOICE");
+    gTraceLeft = gTrace ? TaceTraceBudget(200) : 0;
 
     for (int i = 0; i < kMaxExtraSlots; i++)
     {

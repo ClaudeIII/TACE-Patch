@@ -1,5 +1,6 @@
 #define _CRT_SECURE_NO_WARNINGS
 
+#include <string>
 #include <unordered_map>
 
 #include <injector/injector.hpp>
@@ -7,6 +8,7 @@
 
 #include "rage/Hash.h"
 #include "Types.h"
+#include "Log.h"
 
 std::unordered_map<uint32_t, AnimationOverride> gAnimationOverrides;
 namespace ModelIndices
@@ -198,10 +200,206 @@ void __declspec(naked) IsMultiplayerModelMale()
 
 void InitializeAllLimitAdjusters();
 
+// ============================================================================
+// Patch reporting.
+//
+// Everything below this point is a byte signature that may or may not match.
+// Applied silently, a signature that drifted is indistinguishable from a
+// feature that was never there: the game quietly behaves like vanilla, which is
+// exactly what these patches exist to stop. Worse, hook::pattern's own
+// diagnostics are assert()s, which are compiled out in Release - a pattern
+// matching several sites patches the first one with nothing said at all.
+//
+// So every patch is named and reported: successes at trace level (they are
+// numerous and only interesting when you are hunting), anything unexpected at
+// warn level so it shows up in a default run.
+// ============================================================================
+
+namespace
+{
+    int gPatchApplied = 0;
+    int gPatchAlready = 0;   // gate already opened by an earlier entry
+    int gPatchMissing = 0;
+    int gPatchAmbiguous = 0;
+
+    // `expected` is how many sites the signature is supposed to hit; 0 means a
+    // site count that is legitimately variable and gets reported rather than
+    // judged (two of the anim-group hooks patch every match on purpose).
+    // Non-const: hook::pattern resolves its matches lazily, so even size()
+    // and get_first() mutate it.
+    void ReportPattern(const char *what, hook::pattern &p, size_t expected = 1)
+    {
+        if (p.empty())
+        {
+            gPatchMissing++;
+            TACE_WARN("[patch] %s: signature not found - not applied", what);
+        }
+        else if (expected != 0 && p.size() != expected)
+        {
+            gPatchAmbiguous++;
+            TACE_WARN("[patch] %s: signature matches %zu sites, expected %zu - using the first (%p)",
+                      what, p.size(), expected, p.get_first(0));
+        }
+        else
+        {
+            gPatchApplied++;
+            static const bool trace = TaceTraceEnabled("patch");
+            if (trace)
+                TACE_TRACE("[patch] %s: %p%s", what, p.get_first(0),
+                           p.size() > 1 ? " (and more)" : "");
+        }
+    }
+
+    // For the core hooks, whose failure would break the mod outright. Control
+    // flow is deliberately unchanged - this only makes the failure visible.
+    hook::pattern FindPattern(const char *what, const char *sig, size_t expected = 1)
+    {
+        hook::pattern p(sig);
+        ReportPattern(what, p, expected);
+        return p;
+    }
+
+    // The episodic patches: NOP out an episode check so DLC content is active
+    // in every episode. Same semantics as the hand-written form it replaces -
+    // match, bail if absent, NOP - with the outcome recorded.
+    // Rewrites a signature with the bytes this patch would overwrite turned into
+    // wildcards, so it can still be found after something else has NOPed it.
+    std::string Relaxed(const char *sig, uintptr_t offset, size_t bytes)
+    {
+        std::string out;
+        size_t index = 0;
+        for (const char *t = sig; *t;)
+        {
+            while (*t == ' ') t++;
+            if (!*t) break;
+            const char *end = t;
+            while (*end && *end != ' ') end++;
+            if (!out.empty()) out += ' ';
+            out += (index >= offset && index < offset + bytes) ? "?" : std::string(t, end);
+            t = end;
+            index++;
+        }
+        return out;
+    }
+
+    // Two entries in this file sometimes describe the SAME gate - a pinned
+    // variant and a wildcarded one, written at different times. Whichever runs
+    // first NOPs it, and the second then fails to match its own signature and
+    // reports "not found", which is true and completely useless: the gate is
+    // open. Re-scan with the target bytes wildcarded, and if that lands on the
+    // expected number of sites and they are already NOPs, say so instead.
+    //
+    // Only ever a fallback. Wildcarding the target wholesale would be far too
+    // lossy - for some of these signatures the NOPed bytes are most of what
+    // makes them unique (one goes from 1 match to 281).
+    bool AlreadyOpen(const char *what, const char *sig, uintptr_t offset, size_t bytes,
+                     size_t expected = 1)
+    {
+        hook::pattern p(Relaxed(sig, offset, bytes));
+        if (p.size() != expected)
+            return false;
+        for (size_t i = 0; i < p.size(); i++)
+        {
+            const uint8_t *at = p.get(i).get<uint8_t>(offset);
+            for (size_t b = 0; b < bytes; b++)
+                if (at[b] != 0x90)
+                    return false;
+        }
+        gPatchAlready++;
+        TACE_INFO("[patch] %s: already open - an earlier patch NOPs the same gate", what);
+        return true;
+    }
+
+    bool NopPatch(const char *what, const char *sig, uintptr_t offset, size_t bytes = 2)
+    {
+        hook::pattern p(sig);
+        if (p.empty() && AlreadyOpen(what, sig, offset, bytes))
+            return true;
+        ReportPattern(what, p);
+        if (p.empty())
+            return false;
+        injector::MakeNOP(p.get_first(offset), bytes, true);
+        return true;
+    }
+
+    // One gate, more than one spelling. Tries each signature in turn - the same
+    // idea as find_pattern() in Patterns.h, which carries per-build variants.
+    // Both spellings are kept rather than the loser deleted: a build where one
+    // form drifts may still match the other.
+    bool NopPatchAny(const char *what, uintptr_t offset, size_t bytes,
+                     const char *sigA, const char *sigB)
+    {
+        hook::pattern p(sigA);
+        if (p.empty())
+            p = hook::pattern(sigB);
+        if (p.empty() && AlreadyOpen(what, sigA, offset, bytes))
+            return true;
+        ReportPattern(what, p);
+        if (p.empty())
+            return false;
+        injector::MakeNOP(p.get_first(offset), bytes, true);
+        return true;
+    }
+
+    // Patches EVERY match, not just the first.
+    //
+    // get_first() returns match 0 and only match 0, so a signature covering
+    // several gates has always patched one of them and left the rest in place
+    // silently - which meant some DLC content stayed locked to its own episode.
+    // `expected` is the number of sites reviewed on 1.0.8.0; a different count
+    // on another build is reported rather than assumed.
+    //
+    // The guard: in `cmp dword [global], imm` the compared global sits at
+    // offset 2, and every gate one patch covers must test the SAME global. When
+    // they disagree the signature has drifted onto unrelated code - exactly the
+    // case with "Parachute anims", whose second match was a `cmp [x], 0` with
+    // nothing to do with episodes. Those sites are skipped, not NOPed.
+    bool NopPatchAll(const char *what, const char *sig, uintptr_t offset, size_t expected,
+                     size_t bytes = 2)
+    {
+        hook::pattern p(sig);
+        if (p.size() != expected)
+        {
+            // Fewer sites than were reviewed usually means an earlier entry
+            // already NOPed one of them - check before calling it a problem.
+            hook::pattern relaxed(Relaxed(sig, offset, bytes));
+            if (relaxed.size() == expected)
+            {
+                TACE_INFO("[patch] %s: %zu of %zu site(s) already open, patching the rest",
+                          what, expected - p.size(), expected);
+                gPatchAlready++;
+                p = relaxed;
+            }
+        }
+        ReportPattern(what, p, expected);
+        if (p.empty())
+            return false;
+
+        const uint32_t gate = *p.get(0).get<uint32_t>(2);
+        size_t done = 0;
+        for (size_t i = 0; i < p.size(); i++)
+        {
+            const uint32_t here = *p.get(i).get<uint32_t>(2);
+            if (here != gate)
+            {
+                TACE_WARN("[patch] %s: site %zu tests %08X, not %08X - skipped as unrelated",
+                          what, i, here, gate);
+                continue;
+            }
+            injector::MakeNOP(p.get(i).get<void>(offset), bytes, true);
+            done++;
+        }
+        TACE_TRACE("[patch] %s: %zu of %zu site(s) patched", what, done, p.size());
+        return done > 0;
+    }
+}
+
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
 {
     if(fdwReason == DLL_PROCESS_ATTACH)
     {
+        TaceLog_Init();
+
         InitializeAllLimitAdjusters();
         PainVoice_Init();
         GangWeapons_Init();
@@ -209,540 +407,330 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
 
         hook::pattern pattern {};
 
-        pattern = hook::pattern("8B C8 E8 ? ? ? ? B9 ? ? ? ? A3");
+        pattern = FindPattern("model store base", "8B C8 E8 ? ? ? ? B9 ? ? ? ? A3");
         auto CModelInfoStore__ms_baseModels = *pattern.get_first<CDataStore*>(8);
 
         for (size_t i = CModelInfoStore::ms_baseModels; i < CModelInfoStore::amount; i++)
             CModelInfoStore__ms_baseModels[i].nSize *= 2; // limit adjuster code from FusionFix
 
-        pattern = hook::pattern("89 35 ? ? ? ? 89 35 ? ? ? ? 6A 00 6A 01");
+        pattern = FindPattern("current episode global", "89 35 ? ? ? ? 89 35 ? ? ? ? 6A 00 6A 01");
         _dwCurrentEpisode = *(int32_t**)pattern.get_first(2);
 
-        pattern = hook::pattern("8B 41 3C 8B 54 24 04");
+        pattern = FindPattern("CPedMoveBlendOnFoot::SetAnimGroup", "8B 41 3C 8B 54 24 04");
         CPedMoveBlendOnFoot__SetAnimGroupO = pattern.get_first(0);
 
-        pattern = hook::pattern("74 ? 6A 33 E8 ? ? ? ?");
+        pattern = FindPattern("SetAnimGroup call sites (rifle)", "74 ? 6A 33 E8 ? ? ? ?", 0);
         for(size_t i = 0; i < pattern.size(); i++)
             injector::MakeCALL(pattern.get(i).get<void*>(4), CPedMoveBlendOnFoot__SetAnimGroupH);
 
-        pattern = hook::pattern("5E ? 6A 32 E8 ? ? ? ?");
+        pattern = FindPattern("SetAnimGroup call sites (rpg)", "5E ? 6A 32 E8 ? ? ? ?", 0);
         for(size_t i = 0; i < pattern.size(); i++)
             injector::MakeCALL(pattern.get(i).get<void*>(4), CPedMoveBlendOnFoot__SetAnimGroupH);
 
-        pattern = hook::pattern("8B 8E ? ? ? ? 6A 38 E8 ? ? ? ?");
+        pattern = FindPattern("SetAnimGroup call site (armed)", "8B 8E ? ? ? ? 6A 38 E8 ? ? ? ?");
         injector::MakeCALL(pattern.get_first(8), CPedMoveBlendOnFoot__SetAnimGroupH);
 
-        pattern = hook::pattern("68 60 E4 01 00 6A 00 68 ? ? ? ?");
+        pattern = FindPattern("CModelInfoStore::ms_models", "68 60 E4 01 00 6A 00 68 ? ? ? ?");
         CModelInfoStore__msModels = *(uint32_t**)pattern.get_first(8);
 
-        pattern = hook::pattern("E8 ? ? ? ? 8B F0 8D 47 FF");
+        pattern = FindPattern("CModelInfoStore::GetModelByName", "E8 ? ? ? ? 8B F0 8D 47 FF");
         CModelInfoStore__GetModelByName = injector::GetBranchDestination(pattern.get_first(0), true).get();
 
-        pattern = hook::pattern("8B 44 24 04 85 C0 7D 03");
+        pattern = FindPattern("multiplayer ped model test", "8B 44 24 04 85 C0 7D 03");
         injector::MakeJMP(pattern.get_first(0), IsModelMultiplayerPed);
 
-        pattern = hook::pattern("E8 ? ? ? ? 83 F8 3A");
+        pattern = FindPattern("CAnimMgr::GetAnimGroupIdByName", "E8 ? ? ? ? 83 F8 3A");
         CAnimMgr__GetAnimGroupIdByName = injector::GetBranchDestination(pattern.get_first(0), true).get();
 
-        pattern = hook::pattern("E8 ? ? ? ? 38 1D ? ? ? ? 74 06 88 1D ? ? ? ? 38 1D ? ? ? ? 74 05");
+        pattern = FindPattern("CGame::InitMap", "E8 ? ? ? ? 38 1D ? ? ? ? 74 06 88 1D ? ? ? ? 38 1D ? ? ? ? 74 05");
         CGame__InitMapO = injector::MakeCALL(pattern.get_first(0), CGame__InitMapH).get();
 
-        pattern = hook::pattern("E8 ? ? ? ? 85 ED 74 0E");
+        pattern = FindPattern("CAnimMgr::GetDictionaryIdAtAnimGroup", "E8 ? ? ? ? 85 ED 74 0E");
         CAnimMgr__GetDictionaryIdAtAnimGroup = injector::GetBranchDestination(pattern.get_first(0), true).get();
 
-        pattern = hook::pattern("E8 ? ? ? ? 83 C4 04 84 C0 75 1C");
+        pattern = FindPattern("CAnimMgr::HasAnimLoaded", "E8 ? ? ? ? 83 C4 04 84 C0 75 1C");
         CAnimMgr__HasAnimLoaded = injector::GetBranchDestination(pattern.get_first(0), true).get();
 
-        pattern = hook::pattern("0F BF 45 2E 39 05 ? ? ? ?");
+        pattern = FindPattern("multiplayer ped gender", "0F BF 45 2E 39 05 ? ? ? ?");
         injector::MakeCALL(pattern.get_first(4), IsMultiplayerModelMale);
         injector::MakeNOP(pattern.get_first(9));
 
-        pattern = hook::pattern("E8 ? ? ? ? 8B 8E ? ? ? ? 83 C4 04 84 C0 74 0C");
+        pattern = FindPattern("ped gender test (1)", "E8 ? ? ? ? 8B 8E ? ? ? ? 83 C4 04 84 C0 74 0C");
         injector::MakeCALL(pattern.get_first(0), IsPedFemale);
-        pattern = hook::pattern("E8 ? ? ? ? 8B 8E ? ? ? ? 83 C4 04 84 C0 74 0B");
+        pattern = FindPattern("ped gender test (2)", "E8 ? ? ? ? 8B 8E ? ? ? ? 83 C4 04 84 C0 74 0B");
         injector::MakeCALL(pattern.get_first(0), IsPedFemale);
 
         {
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 07 68 ? ? ? ? EB 05 68 ? ? ? ?"); // E2 Bullet traces
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            // The episode immediate is pinned to 02 deliberately. Wildcarded, this
+            // signature also matched a `cmp episode,1` that picks between the
+            // "PU_SEADONE" / "PU_SEADONEE2" pickup names - and since get_first()
+            // returns match 0, THAT is the site this patch used to NOP, leaving
+            // wpn_bullet_trace_e2 locked to TBoGT. Pinning it lands on the gate
+            // the name describes and leaves the pickup names alone.
+            NopPatch("E2 Bullet traces", "83 3D ? ? ? ? 02 75 07 68 ? ? ? ? EB 05 68 ? ? ? ?", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 53 55 8B 6C 24 20 57 8B F9 BB ? ? ? ? 75 29"); // TBoGT counter anims fix
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(21), 2, true);
+            NopPatch("TBoGT counter anims fix #1", "83 3D ? ? ? ? ? 53 55 8B 6C 24 20 57 8B F9 BB ? ? ? ? 75 29", 21);
 
-            pattern = hook::pattern("39 1D ? ? ? ? 75 2A 80 7F 28 00"); // TBoGT counter anims fix
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(6), 2, true);
+            NopPatch("TBoGT counter anims fix #2", "39 1D ? ? ? ? 75 2A 80 7F 28 00", 6);
 
             //pattern = hook::pattern("83 3D ? ? ? ? ? 75 32 8B 56 34"); // TBoGT melee stuff?
             //if (!pattern.empty())
             //    injector::MakeNOP(pattern.get_first(7), 2, true);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 0A F3 0F 10 05 ? ? ? ?"); // parachute wind sounds
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            // One signature, two gates, and it was written out twice under two names -
+            // so site 0 was NOPed twice and site 1 never. Both are patched here.
+            NopPatchAll("parachute wind sounds / explosive weapons networking",
+                        "83 3D ? ? ? ? 02 75 0A F3 0F 10 05 ? ? ? ?", 7, 2);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 8A 81"); // disco camera shake
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(18), 2, true);
+            NopPatch("disco camera shake #1", "83 3D ? ? ? ? ? 8A 81", 18);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 05 E8 ? ? ? ? 8B 4E 04"); // disco camera shake
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("disco camera shake #2", "83 3D ? ? ? ? ? 75 05 E8 ? ? ? ? 8B 4E 04", 7);
 
-            auto pattern = hook::pattern("83 3D ? ? ? ? ? 75 23 80 3D");  // disco camera shake
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("disco camera shake #3", "83 3D ? ? ? ? ? 75 23 80 3D", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 6A 00 6A 00 6A 01"); // m249 for swat in annihilators and helicopters
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(20), 2, true);
+            NopPatch("m249 for swat in annihilators and helicopters", "83 3D ? ? ? ? ? 6A 00 6A 00 6A 01", 20);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 0F 8C ? ? ? ? 8B CF"); // phone model change
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 6, true);
+            NopPatch("phone model change", "83 3D ? ? ? ? ? 0F 8C ? ? ? ? 8B CF", 7, 6);
 
-            pattern = hook::pattern("DD D8 83 3D ? ? ? ? ? 0F 85 ? ? ? ? 39 9C 24 ? ? ? ? 0F 84 ? ? ? ? E8 ? ? ? ?"); // explosive sniper cheat
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(9), 6, true);
+            NopPatch("explosive sniper cheat", "DD D8 83 3D ? ? ? ? ? 0F 85 ? ? ? ? 39 9C 24 ? ? ? ? 0F 84 ? ? ? ? E8 ? ? ? ?", 9, 6);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 0F 85 ? ? ? ? 80 3D ? ? ? ? ? 0F 84 ? ? ? ? 6A FF"); // explosive fists cheat
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 6, true);
+            NopPatch("explosive fists cheat", "83 3D ? ? ? ? ? 0F 85 ? ? ? ? 80 3D ? ? ? ? ? 0F 84 ? ? ? ? 6A FF", 7, 6);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 0F 8C ? ? ? ? 85 FF"); // annihilator explosive shots
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 6, true);
+            NopPatch("annihilator explosive shots", "83 3D ? ? ? ? ? 0F 8C ? ? ? ? 85 FF", 7, 6);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 30 83 7E 14 19 75 2A "); // Grenade launcher explode on impact
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("Grenade launcher explode on impact", "83 3D ? ? ? ? ? 75 30 83 7E 14 19 75 2A ", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 57 83 F8 02 75 52"); // CExplosions__addExplosion
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("CExplosions__addExplosion", "83 3D ? ? ? ? ? 75 57 83 F8 02 75 52", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 1B 8B 56 40 F3 0F 10 05 ? ? ? ? "); // CExplosions__addExplosion disable ped rolling
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("CExplosions__addExplosion disable ped rolling", "83 3D ? ? ? ? ? 75 1B 8B 56 40 F3 0F 10 05 ? ? ? ? ", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 0F 8C ? ? ? ? 83 7F 6C 20"); // P90 scroll block
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 6, true);
+            NopPatch("P90 scroll block", "83 3D ? ? ? ? ? 0F 8C ? ? ? ? 83 7F 6C 20", 7, 6);
 
-            pattern = hook::pattern("39 35 ? ? ? ? 7C 05"); // P90 get in car block
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(6), 2, true);
+            NopPatch("P90 get in car block", "39 35 ? ? ? ? 7C 05", 6);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 13 8B 44 24 04"); // ADD_GROUP_TO_NETWORK_RESTART_NODE_GROUP_LIST
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("ADD_GROUP_TO_NETWORK_RESTART_NODE_GROUP_LIST", "83 3D ? ? ? ? ? 75 13 8B 44 24 04", 7);
 
-            pattern = hook::pattern("89 94 24 ? ? ? ? 88 8C 24 ? ? ? ? 75 2F"); // E2_Landing marker request model
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(14), 2, true);
+            NopPatch("E2_Landing marker request model #1", "89 94 24 ? ? ? ? 88 8C 24 ? ? ? ? 75 2F", 14);
 
-            pattern = hook::pattern("57 BD ? ? ? ? 75 05"); // E2_Landing marker request model
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(6), 2, true);
+            NopPatch("E2_Landing marker request model #2", "57 BD ? ? ? ? 75 05", 6);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? BB ? ? ? ? 75 05"); // E2_Landing marker request model
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(12), 2, true);
+            NopPatch("E2_Landing marker request model #3", "83 3D ? ? ? ? ? BB ? ? ? ? 75 05", 12);
 
-            pattern = hook::pattern("39 3D ? ? ? ? 0F 85 ? ? ? ? 66 83 7E ? ? 0F 85 ? ? ? ?"); // E2_Landing marker Enable
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(6), 6, true);
+            NopPatch("E2_Landing marker Enable", "39 3D ? ? ? ? 0F 85 ? ? ? ? 66 83 7E ? ? 0F 85 ? ? ? ?", 6, 6);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 1E E8 ? ? ? ? 84 C0"); // Give parachute during load save
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("Give parachute during load save", "83 3D ? ? ? ? ? 75 1E E8 ? ? ? ? 84 C0", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 0C 80 3D ? ? ? ? ? 74 03"); // Check if player had a parachute
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("Check if player had a parachute", "83 3D ? ? ? ? ? 75 0C 80 3D ? ? ? ? ? 74 03", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 0D 80 7E 7D 00 74 07 C6 05 ? ? ? ? ?"); // Check for parachute during savegame
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("Check for parachute during savegame #1", "83 3D ? ? ? ? ? 75 0D 80 7E 7D 00 74 07 C6 05 ? ? ? ? ?", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 20 E8 ? ? ? ? 85 C0"); // Check for parachute during savegame
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("Check for parachute during savegame #2", "83 3D ? ? ? ? ? 75 20 E8 ? ? ? ? 85 C0", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 12 80 3D ? ? ? ? ? 0F 85 ? ? ? ?"); // E2 stats check?
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("E2 stats check #1", "83 3D ? ? ? ? ? 75 12 80 3D ? ? ? ? ? 0F 85 ? ? ? ?", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 05 E8 ? ? ? ? 80 3D ? ? ? ? ?"); // E2 stats check?
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("E2 stats check #2", "83 3D ? ? ? ? ? 75 05 E8 ? ? ? ? 80 3D ? ? ? ? ?", 7);
 
-            /*pattern = hook::pattern("BE ? ? ? ? 39 35 ? ? ? ? 75 0E 56"); // Default.dat load order?
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(11), 2, true);
+            /*NopPatch("Default.dat load order #1", "BE ? ? ? ? 39 35 ? ? ? ? 75 0E 56", 11);
 
-            pattern = hook::pattern("39 35 ? ? ? ? 75 09 6A 01 68 ? ? ? ?"); // Default.dat load order?
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(6), 2, true);*/
+            NopPatch("Default.dat load order #2", "39 35 ? ? ? ? 75 09 6A 01 68 ? ? ? ?", 6);*/
 
-            pattern = hook::pattern("6A 0A 81 C1 ? ? ? ? E8 ? ? ? ? EB 04"); // Make cops spawn with baretta instead of pumpshot
+            pattern = FindPattern("cops carry a Baretta, not a pump shotgun", "6A 0A 81 C1 ? ? ? ? E8 ? ? ? ? EB 04"); // Make cops spawn with baretta instead of pumpshot
             if (!pattern.empty())
                 injector::WriteMemory<int8_t>(pattern.get_first(1), 11, true);
 
-            pattern = hook::pattern("83 3D ? ? ? ? 02 0F 8C D5 00"); // Explosive AA12 enabler
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 6, true);
+            NopPatch("Explosive AA12 enabler", "83 3D ? ? ? ? 02 0F 8C D5 00", 7, 6);
             
-            pattern = hook::pattern("83 F8 02 7C E3 83 FB 1E 75 DE"); // Explosive AA12
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(3), 2, true);
+            NopPatch("Explosive AA12", "83 F8 02 7C E3 83 FB 1E 75 DE", 3);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 7C 1A 83 FE 03 75 15"); // CPedWeapons__giveWeapon Explosive AA12
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("CPedWeapons__giveWeapon Explosive AA12", "83 3D ? ? ? ? ? 7C 1A 83 FE 03 75 15", 7);
 
-            pattern = hook::pattern("83 F8 02 7C 25 83 FB 28"); // APC Cannon
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(3), 2, true);
+            NopPatch("APC Cannon", "83 F8 02 7C 25 83 FB 28", 3);
 
-            pattern = hook::pattern("83 3D ? ? ? ? 02 7C 32 8B 41"); // dsr1?
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("dsr1", "83 3D ? ? ? ? 02 7C 32 8B 41", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 5B 83 3D ? ? ? ? ?"); // dsr1 hud
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("dsr1 hud", "83 3D ? ? ? ? ? 75 5B 83 3D ? ? ? ? ?", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 0E F3 0F 10 05 ? ? ? ?"); // Sniper rifle checks?
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            // Two episode-2 gates, only one of which was ever patched. Wildcarded, the
+            // signature also caught a `cmp episode,1` loading the TLAD value in a
+            // third function; that one is left alone on purpose - forcing a TLAD
+            // constant would override TBoGT's own in that path.
+            NopPatchAll("Sniper rifle checks #1", "83 3D ? ? ? ? 02 75 0E F3 0F 10 05 ? ? ? ?", 7, 2);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 04 B3 01 EB 02"); // Sniper rifle checks?
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("Sniper rifle checks #2", "83 3D ? ? ? ? ? 75 04 B3 01 EB 02", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? 02 7C 7D 8B 4C 24 0C"); // weap checks
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("weap checks #1", "83 3D ? ? ? ? 02 7C 7D 8B 4C 24 0C", 7);
 
-            pattern = hook::pattern("39 3D ? ? ? ? 7C 14 8B 46 18"); // exp aa12 & apc cannon
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(6), 2, true);
+            NopPatch("exp aa12 & apc cannon", "39 3D ? ? ? ? 7C 14 8B 46 18", 6);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 0A F3 0F 10 05 ? ? ? ?"); // explosive weapons networking
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            // (explosive weapons networking shares the signature above and is
+            //  patched by it - it used to be a second call that re-NOPed site 0.)
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 22 83 F8 02 75 1D"); // weap checks? nearby explosive weapon checks
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("weap checks? nearby explosive weapon checks", "83 3D ? ? ? ? ? 75 22 83 F8 02 75 1D", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? 02 75 50"); // sticky bomb move disable?
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("sticky bomb move disable", "83 3D ? ? ? ? 02 75 50", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 20 8B 07 8B 90 ? ? ? ?"); // CTaskComplexAimAndThrowProjectile::createNextSubTask
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("CTaskComplexAimAndThrowProjectile::createNextSubTask", "83 3D ? ? ? ? ? 75 20 8B 07 8B 90 ? ? ? ?", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 1C 8B 47 18 50 E8 ? ? ? ?"); // CTaskSimplePlayerAimProjectile::process
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("CTaskSimplePlayerAimProjectile::process", "83 3D ? ? ? ? ? 75 1C 8B 47 18 50 E8 ? ? ? ?", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 0F 85 ? ? ? ? 8B 46 4C"); // CTaskSimpleThrowProjectile::process
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 6, true);
+            NopPatchAny("CTaskSimpleThrowProjectile::process", 7, 6,
+                        "83 3D ? ? ? ? ? 0F 85 ? ? ? ? 8B 46 4C",
+                        "83 3D ? ? ? ? 02 0F 85 8C 01 00 00");   // 2nd spelling was its own entry
 
-            pattern = hook::pattern("83 3D ? ? ? ? 02 0F 85 8C 01 00 00"); // Sticky bomb CTaskSimpleThrowProjectile::process
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 6, true);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 29 8B 44 24 04"); // Sticky bomb something?
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatchAny("Sticky bomb something", 7, 2,
+                        "83 3D ? ? ? ? ? 75 29 8B 44 24 04",
+                        "83 3D ? ? ? ? ? 75 29 8B 44 24 04 8A 88 ? ? ? ?");   // was #1 and #2
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 29 8B 44 24 04 8A 88 ? ? ? ?"); // Sticky bomb something?
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
 
-            pattern = hook::pattern("83 3D ? ? ? ? 02 75 20 8B CD E8"); // Sticky bomb drop icon
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("Sticky bomb drop icon", "83 3D ? ? ? ? 02 75 20 8B CD E8", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 3C 8B 41 20 85 C0"); // Sticky bomb faster throw in vehicle ??
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("Sticky bomb faster throw in vehicle #1", "83 3D ? ? ? ? ? 75 3C 8B 41 20 85 C0", 7);
             
-            pattern = hook::pattern("83 3D ? ? ? ? ? 7C 69 8D 8F ? ? ? ?"); // Sticky bomb faster throw in vehicle
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("Sticky bomb faster throw in vehicle #2", "83 3D ? ? ? ? ? 7C 69 8D 8F ? ? ? ?", 7);
 
-            pattern = hook::pattern("39 05 ? ? ? ? F3 0F 59 EC"); // Sticky bomb faster throw in vehicle
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(44), 6, true);
+            NopPatch("Sticky bomb faster throw in vehicle #3", "39 05 ? ? ? ? F3 0F 59 EC", 44, 6);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 88 44 24 1C 7C 0B"); // Sticky bomb ??
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(11), 2, true);
+            NopPatch("Sticky bomb", "83 3D ? ? ? ? ? 88 44 24 1C 7C 0B", 11);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 7C 4C 83 F8 15 75 47"); // Sticky bomb mp sync
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("Sticky bomb mp sync", "83 3D ? ? ? ? ? 7C 4C 83 F8 15 75 47", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? 02 7C 21 8B 44 24 0C"); // weap checks
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("weap checks #2", "83 3D ? ? ? ? 02 7C 21 8B 44 24 0C", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? 02 7C 0A F3 0F"); // TBoGT heli height limit
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("TBoGT heli height limit", "83 3D ? ? ? ? 02 7C 0A F3 0F", 7);
 
-            pattern = hook::pattern("39 2D ? ? ? ? 75 3E"); // PoliceEpisodicWeaponSupport
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(6), 2, true);
+            NopPatch("PoliceEpisodicWeaponSupport", "39 2D ? ? ? ? 75 3E", 6);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 74 1A 83 7D 18 1C"); // PipeBombDropIconSupport
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("PipeBombDropIconSupport", "83 3D ? ? ? ? ? 74 1A 83 7D 18 1C", 7);
 
-            pattern = hook::pattern("39 05 ? ? ? ? 0F 85 ? ? ? ? 68 ? ? ? ?"); // BikeFeetFix
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(6), 6, true);
+            NopPatch("BikeFeetFix", "39 05 ? ? ? ? 0F 85 ? ? ? ? 68 ? ? ? ?", 6, 6);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 0F 8C ? ? ? ? F6 86 ? ? ? ? ?"); // BikePhoneAnimsFix
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 6, true);
+            NopPatch("BikePhoneAnimsFix", "83 3D ? ? ? ? ? 0F 8C ? ? ? ? F6 86 ? ? ? ? ?", 7, 6);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 14 E8"); // Parachute anims
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            // Pinned to 02: the second match of the wildcarded form was a `cmp [x],0`
+            // on an unrelated global. Behaviour is unchanged - that site was never
+            // patched - but the signature can no longer reach it.
+            NopPatch("Parachute anims", "83 3D ? ? ? ? 02 75 14 E8", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 7C 0D F3 0F 10 05 ? ? ? ?"); // Parachute
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("Parachute #1", "83 3D ? ? ? ? ? 7C 0D F3 0F 10 05 ? ? ? ?", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 6D 56 8B 74 24 0C"); // Parachute
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("Parachute #2", "83 3D ? ? ? ? ? 75 6D 56 8B 74 24 0C", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 18 0F B7 46 0A"); // Parachute
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("Parachute #3", "83 3D ? ? ? ? ? 75 18 0F B7 46 0A", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 0F 85 ? ? ? ? 8B 54 24 0C"); // parachute extended camera
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 6, true);
+            NopPatch("parachute extended camera", "83 3D ? ? ? ? ? 0F 85 ? ? ? ? 8B 54 24 0C", 7, 6);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 7C 1F 8B 56 18"); // Buzzards minigun
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatchAny("Buzzards minigun", 7, 2,
+                        "83 3D ? ? ? ? ? 7C 1F 8B 56 18",
+                        "83 3D ? ? ? ? 02 7C 1F 8B");   // 2nd spelling was a BUZZARD entry
  
-            pattern = hook::pattern("83 3D ? ? ? ? 02 0F 8C 0E 05 00 00"); // EpisodicVehicleSupport (APC)
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 6, true);
+            NopPatch("EpisodicVehicleSupport (APC) #1", "83 3D ? ? ? ? 02 0F 8C 0E 05 00 00", 7, 6);
 
-            pattern = hook::pattern("83 3D ? ? ? ? 02 7C 35 0F BF 43 2E"); // EpisodicVehicleSupport (APC)
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("EpisodicVehicleSupport (APC) #2", "83 3D ? ? ? ? 02 7C 35 0F BF 43 2E", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? 02 8A 0D"); // EpisodicVehicleSupport (APC)
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(17), 2, true);
+            NopPatch("EpisodicVehicleSupport (APC) #3", "83 3D ? ? ? ? 02 8A 0D", 17);
 
-            pattern = hook::pattern("83 3D ? ? ? ? 02 75 21 8B 96 20 08 00 00"); // EpisodicVehicleSupport (APC)
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("EpisodicVehicleSupport (APC) #4", "83 3D ? ? ? ? 02 75 21 8B 96 20 08 00 00", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? 02 7C 4A 0F BF 46 2E"); // EpisodicVehicleSupport (APC)
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("EpisodicVehicleSupport (APC) #5", "83 3D ? ? ? ? 02 7C 4A 0F BF 46 2E", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? 02 75 08 3B 05"); // EpisodicVehicleSupport (APC) respray
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("EpisodicVehicleSupport (APC) respray", "83 3D ? ? ? ? 02 75 08 3B 05", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? 02 75 1F 8B 44 24 04"); // EpisodicVehicleSupport APC & BUZZARD
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("EpisodicVehicleSupport APC & BUZZARD", "83 3D ? ? ? ? 02 75 1F 8B 44 24 04", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? 02 75 38 8B 16"); // EpisodicVehicleSupport (APC)
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("EpisodicVehicleSupport (APC) #6", "83 3D ? ? ? ? 02 75 38 8B 16", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? 02 75 24 F6 87 6C 02 00 00 04"); // EpisodicVehicleSupport (APC)
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("EpisodicVehicleSupport (APC) #7", "83 3D ? ? ? ? 02 75 24 F6 87 6C 02 00 00 04", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 0E F3 0F 10 05 ? ? ? ? F3 0F 11 44 24 ? 8B 47 04 0F BF 48 2E"); // EpisodicVehicleSupport (APC)
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("EpisodicVehicleSupport (APC) #8", "83 3D ? ? ? ? ? 75 0E F3 0F 10 05 ? ? ? ? F3 0F 11 44 24 ? 8B 47 04 0F BF 48 2E", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 8B 07 8B B0 ? ? ? ? 8B 56 04 8B 4A 0C 89 4C 24 1C 7C 18"); // EpisodicVehicleSupport (APC)
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(25), 2, true);
+            NopPatch("EpisodicVehicleSupport (APC) #9", "83 3D ? ? ? ? ? 8B 07 8B B0 ? ? ? ? 8B 56 04 8B 4A 0C 89 4C 24 1C 7C 18", 25);
 
-            pattern = hook::pattern("83 3D ? ? ? ? 02 75 35 0F BF 46 2E"); // EpisodicVehicleSupport (APC)
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("EpisodicVehicleSupport (APC) #10", "83 3D ? ? ? ? 02 75 35 0F BF 46 2E", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? 02 7C 26 8B 85 40 0B 00 00"); // EpisodicVehicleSupport (APC)
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("EpisodicVehicleSupport (APC) #11", "83 3D ? ? ? ? 02 7C 26 8B 85 40 0B 00 00", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? 02 75 17 F3 0F 10 44 24 0C"); // EpisodicVehicleSupport (APC)
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("EpisodicVehicleSupport (APC) #12", "83 3D ? ? ? ? 02 75 17 F3 0F 10 44 24 0C", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? F3 0F 10 15 ? ? ? ? 8B 35 ? ? ? ? F3 0F 11 54 24 ? 75 09"); // Weapon sounds sub_B5D970
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(27), 2, true);
+            NopPatch("Weapon sounds sub_B5D970", "83 3D ? ? ? ? ? F3 0F 10 15 ? ? ? ? 8B 35 ? ? ? ? F3 0F 11 54 24 ? 75 09", 27);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 7C 8B 35 ? ? ? ?"); // SHOTGUN_EXPLOSION sub_B5D970
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("SHOTGUN_EXPLOSION sub_B5D970", "83 3D ? ? ? ? ? 75 7C 8B 35 ? ? ? ?", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? 02 F3 0F 10 05 ? ? ? ? F3 0F 11 44 24 20 75 4C"); // APC_EXPLOSION sub_B5D970
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(21), 2, true);
+            NopPatch("APC_EXPLOSION sub_B5D970", "83 3D ? ? ? ? 02 F3 0F 10 05 ? ? ? ? F3 0F 11 44 24 20 75 4C", 21);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 0F 85 ? ? ? ? 84 C0"); // GRENADE_EXPLOSION sub_B5D970
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 6, true);
+            NopPatch("GRENADE_EXPLOSION sub_B5D970", "83 3D ? ? ? ? ? 0F 85 ? ? ? ? 84 C0", 7, 6);
             
-            pattern = hook::pattern("83 3D ? ? ? ? ? 57 7C 22"); // EpisodicVehicleSupport (APC) sounds
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(8), 2, true);
+            NopPatch("EpisodicVehicleSupport (APC) sounds", "83 3D ? ? ? ? ? 57 7C 22", 8);
             
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 09 83 BE ? ? ? ? ? 7F 26"); // EpisodicVehicleSupport (BUZZARD)
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("EpisodicVehicleSupport (BUZZARD) #1", "83 3D ? ? ? ? ? 75 09 83 BE ? ? ? ? ? 7F 26", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 7C 58 0F BF 4E 2E 3B 0D ? ? ? ?"); // EpisodicVehicleSupport (BUZZARD)
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("EpisodicVehicleSupport (BUZZARD) #2", "83 3D ? ? ? ? ? 7C 58 0F BF 4E 2E 3B 0D ? ? ? ?", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 0F 8C ? ? ? ? 0F BF 46 2E 3B 05 ? ? ? ? 74 0C"); // EpisodicVehicleSupport (BUZZARD)
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 6, true);
+            NopPatchAll("EpisodicVehicleSupport (BUZZARD) #3",
+                        "83 3D ? ? ? ? 02 0F 8C ? ? ? ? 0F BF 46 2E 3B 05 ? ? ? ? 74 0C", 7, 2, 6);
             
-            pattern = hook::pattern("83 3D ? ? ? ? ? F3 0F 11 44 24 ? F3 0F 10 40 ? F3 0F 11 44 24 ? 0F 85 ? ? ? ?"); // EpisodicVehicleSupport (BUZZARD)
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(24), 6, true);
+            NopPatch("EpisodicVehicleSupport (BUZZARD) #4", "83 3D ? ? ? ? ? F3 0F 11 44 24 ? F3 0F 10 40 ? F3 0F 11 44 24 ? 0F 85 ? ? ? ?", 24, 6);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 7C 64 0F BF 46 2E 3B 05 ? ? ? ?"); // EpisodicVehicleSupport (BUZZARD & SWIFT)
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("EpisodicVehicleSupport (BUZZARD & SWIFT)", "83 3D ? ? ? ? ? 7C 64 0F BF 46 2E 3B 05 ? ? ? ?", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? 02 89 44 24 38"); // EpisodicVehicleSupport (BUZZARD) sounds
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(11), 2, true);
+            NopPatch("EpisodicVehicleSupport (BUZZARD) sounds", "83 3D ? ? ? ? 02 89 44 24 38", 11);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 7C 11 8B 46 18 50 E8 ? ? ? ?"); // EpisodicVehicleSupport (BUZZARD) BULLET_IMPACT_WATER
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("EpisodicVehicleSupport (BUZZARD) BULLET_IMPACT_WATER", "83 3D ? ? ? ? ? 7C 11 8B 46 18 50 E8 ? ? ? ?", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? 02 7C 43"); // EpisodicVehicleSupport (BUZZARD) weapon effects
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("EpisodicVehicleSupport (BUZZARD) weapon effects", "83 3D ? ? ? ? 02 7C 43", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? 02 7C 1F 8B"); // EpisodicVehicleSupport (BUZZARD) minigun
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
 
-            pattern = hook::pattern("83 3D ? ? ? ? 02 7C 11 8B 4E"); // EpisodicVehicleSupport (BUZZARD) minigun
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("EpisodicVehicleSupport (BUZZARD) minigun #2", "83 3D ? ? ? ? 02 7C 11 8B 4E", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 7C 11 8B 4F 18 51 E8 ? ? ? ?"); // BUZZARD rubble effects
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("BUZZARD rubble effects", "83 3D ? ? ? ? ? 7C 11 8B 4F 18 51 E8 ? ? ? ?", 7);
 
-            pattern = hook::pattern("39 35 ? ? ? ? 75 0E 80 3D"); // EpisodicVehicleSupport Altimeter
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(6), 2, true);
+            NopPatch("EpisodicVehicleSupport Altimeter", "39 35 ? ? ? ? 75 0E 80 3D", 6);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 5A 3B 05 ? ? ? ? 75 19"); // EpisodicVehicleSupport Boat models
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("EpisodicVehicleSupport Boat models #1", "83 3D ? ? ? ? ? 75 5A 3B 05 ? ? ? ? 75 19", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 3C 3B 05 ? ? ? ? 75 0A"); // EpisodicVehicleSupport Boat models
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatchAll("EpisodicVehicleSupport Boat models #2",
+                        "83 3D ? ? ? ? 02 75 3C 3B 05 ? ? ? ? 75 0A", 7, 2);
 
-            pattern = hook::pattern("EB 61 3B 05 ? ? ? ? 75 0A F3 0F 10 05 ? ? ? ? EB 4F 3B 05 ? ? ? ? 75 0A F3 0F 10 05 ? ? ? ? EB 3D 83 3D ? ? ? ? ? 75 3C"); // EpisodicVehicleSupport Boat models
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(45), 2, true);
+            NopPatch("EpisodicVehicleSupport Boat models #3", "EB 61 3B 05 ? ? ? ? 75 0A F3 0F 10 05 ? ? ? ? EB 4F 3B 05 ? ? ? ? 75 0A F3 0F 10 05 ? ? ? ? EB 3D 83 3D ? ? ? ? ? 75 3C", 45);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 32 3B 05 ? ? ? ? 75 0A F3 0F 10 05 ? ? ? ?"); // EpisodicVehicleSupport Boat models
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("EpisodicVehicleSupport Boat models #4", "83 3D ? ? ? ? ? 75 32 3B 05 ? ? ? ? 75 0A F3 0F 10 05 ? ? ? ?", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 20 0F BF 56 2E 3B 15 ? ? ? ?"); // EpisodicVehicleSupport Floater camera
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("EpisodicVehicleSupport Floater camera", "83 3D ? ? ? ? ? 75 20 0F BF 56 2E 3B 15 ? ? ? ?", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 2C 3B 05 ? ? ? ? 0F 84 ? ? ? ?"); // EpisodicVehicleSupport Boat models
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("EpisodicVehicleSupport Boat models #5", "83 3D ? ? ? ? ? 75 2C 3B 05 ? ? ? ? 0F 84 ? ? ? ?", 7);
 
-            pattern = hook::pattern("83 3D ? ? ? ? ? 75 28 3B 05 ? ? ? ? 74 C3 3B 05 ? ? ? ? 74 08 3B 05 ? ? ? ?"); // EpisodicVehicleSupport Boats
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(7), 2, true);
+            NopPatch("EpisodicVehicleSupport Boats", "83 3D ? ? ? ? ? 75 28 3B 05 ? ? ? ? 74 C3 3B 05 ? ? ? ? 74 08 3B 05 ? ? ? ?", 7);
 
-            pattern = hook::pattern("EB 31 83 3D ? ? ? ? ? 75 30 3B 05 ? ? ? ?"); // EpisodicVehicleSupport Boat models
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(9), 2, true);
+            NopPatch("EpisodicVehicleSupport Boat models #6", "EB 31 83 3D ? ? ? ? ? 75 30 3B 05 ? ? ? ?", 9);
 
-            pattern = hook::pattern("3B 05 ? ? ? ? 74 EE 83 3D ? ? ? ? ? 75 28"); // EpisodicVehicleSupport Boat models
-            if (!pattern.empty())
-                injector::MakeNOP(pattern.get_first(15), 2, true);
+            NopPatch("EpisodicVehicleSupport Boat models #7", "3B 05 ? ? ? ? 74 EE 83 3D ? ? ? ? ? 75 28", 15);
         }
 
-        /*pattern = hook::pattern("83 3D ? ? ? ? ? 8B F0 75 09"); // Achievement/Rank10 unlocks for all episodes
-        if (!pattern.empty())
-            injector::MakeNOP(pattern.get_first(9), 2, true);
+        /*NopPatch("Achievement/Rank10 unlocks for all episodes #1", "83 3D ? ? ? ? ? 8B F0 75 09", 9);
 
-        pattern = hook::pattern("83 3D ? ? ? ? ? 0F 85 ? ? ? ? 6A 00 E8 ? ? ? ? 83 C4 04 83 F8 0A 0F 8C ? ? ? ?"); // Achievement/Rank10 unlocks for all episodes
-        if (!pattern.empty())
-            injector::MakeNOP(pattern.get_first(7), 6, true);
+        NopPatch("Achievement/Rank10 unlocks for all episodes #2", "83 3D ? ? ? ? ? 0F 85 ? ? ? ? 6A 00 E8 ? ? ? ? 83 C4 04 83 F8 0A 0F 8C ? ? ? ?", 7, 6);
 
-        pattern = hook::pattern("83 3D ? ? ? ? ? 75 0D F6 05 ? ? ? ? ?"); // Achievement/Rank10 unlocks for all episodes
-        if (!pattern.empty())
-            injector::MakeNOP(pattern.get_first(7), 2, true);
+        NopPatch("Achievement/Rank10 unlocks for all episodes #3", "83 3D ? ? ? ? ? 75 0D F6 05 ? ? ? ? ?", 7);
 
-        pattern = hook::pattern("83 3D ? ? ? ? ? 75 70 F6 05 ? ? ? ? ?"); // Achievement/Rank10 unlocks for all episodes
-        if (!pattern.empty())
-            injector::MakeNOP(pattern.get_first(7), 2, true);
+        NopPatch("Achievement/Rank10 unlocks for all episodes #4", "83 3D ? ? ? ? ? 75 70 F6 05 ? ? ? ? ?", 7);
 
-        pattern = hook::pattern("83 3D ? ? ? ? ? 75 0D B8 ? ? ? ?"); // Achievement/Rank10 unlocks for all episodes
-        if (!pattern.empty())
-            injector::MakeNOP(pattern.get_first(7), 2, true);
+        NopPatch("Achievement/Rank10 unlocks for all episodes #5", "83 3D ? ? ? ? ? 75 0D B8 ? ? ? ?", 7);
 
-        pattern = hook::pattern("83 3D ? ? ? ? ? 75 0F F6 05 ? ? ? ? ?"); // Achievement/Rank10 unlocks for all episodes
-        if (!pattern.empty())
-            injector::MakeNOP(pattern.get_first(7), 2, true);
+        NopPatch("Achievement/Rank10 unlocks for all episodes #6", "83 3D ? ? ? ? ? 75 0F F6 05 ? ? ? ? ?", 7);
 
-        pattern = hook::pattern("8B 1D ? ? ? ? 85 DB 55 56 57 0F 85 ? ? ? ?"); // Achievement/Rank10 unlocks for all episodes
-        if (!pattern.empty())
-            injector::MakeNOP(pattern.get_first(11), 6, true);
+        NopPatch("Achievement/Rank10 unlocks for all episodes #7", "8B 1D ? ? ? ? 85 DB 55 56 57 0F 85 ? ? ? ?", 11, 6);
 
-        pattern = hook::pattern("85 C9 0F B6 C0 75 20"); // Achievement/Rank10 unlocks for all episodes
-        if (!pattern.empty())
-            injector::MakeNOP(pattern.get_first(5), 2, true);
+        NopPatch("Achievement/Rank10 unlocks for all episodes #8", "85 C9 0F B6 C0 75 20", 5);
 
-        pattern = hook::pattern("83 C4 0C 83 3D ? ? ? ? ? 75 75"); // Achievement/Rank10 unlocks for all episodes
-        if (!pattern.empty())
-            injector::MakeNOP(pattern.get_first(10), 2, true);
+        NopPatch("Achievement/Rank10 unlocks for all episodes #9", "83 C4 0C 83 3D ? ? ? ? ? 75 75", 10);
 
-        pattern = hook::pattern("83 C4 0C 83 3D ? ? ? ? ? 75 54"); // Achievement/Rank10 unlocks for all episodes
-        if (!pattern.empty())
-            injector::MakeNOP(pattern.get_first(10), 2, true);
+        NopPatch("Achievement/Rank10 unlocks for all episodes #10", "83 C4 0C 83 3D ? ? ? ? ? 75 54", 10);
 
-        pattern = hook::pattern("85 D2 8B 40 04 75 0E"); // Achievement/Rank10 unlocks for all episodes
-        if (!pattern.empty())
-            injector::MakeNOP(pattern.get_first(5), 2, true);*/
+        NopPatch("Achievement/Rank10 unlocks for all episodes #11", "85 D2 8B 40 04 75 0E", 5);*/
+
+        TACE_INFO("[patch] %d applied, %d already open, %d not found, %d ambiguous",
+                  gPatchApplied, gPatchAlready, gPatchMissing, gPatchAmbiguous);
+        TaceLog_Summary();
     }
 
     return true;

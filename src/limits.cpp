@@ -101,7 +101,7 @@ namespace
         gConfig.enableCarcols  = readBool("LIMITS", "Carcols", gConfig.enableCarcols);
         gConfig.enableVehOffs  = readBool("LIMITS", "VehicleOffsets", gConfig.enableVehOffs);
         gConfig.enableWeaponInfo = readBool("LIMITS", "WeaponInfo", gConfig.enableWeaponInfo);
-        gConfig.verboseXrefs   = readBool("DEBUG", "VerboseXrefs", gConfig.verboseXrefs);
+        gConfig.verboseXrefs   = TaceTraceEnabled("limits") || readBool("DEBUG", "VerboseXrefs", gConfig.verboseXrefs);
 
         // Refuse nonsense rather than letting it reach a memory write.
         if (gConfig.animWadBlocks < 1500)
