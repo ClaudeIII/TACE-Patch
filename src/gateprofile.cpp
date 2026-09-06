@@ -49,7 +49,18 @@ namespace
     Gate     *gGates      = nullptr;
     size_t    gCount      = 0;
     uint8_t  *gStubs      = nullptr;
-    int32_t  *gEpisode    = nullptr;
+    int32_t  *gEpisode    = nullptr;   // the mirror we read the value from
+    int32_t  *gGlobals[4] = {};        // every episode mirror the gates branch on
+    int       gGlobalCount = 0;
+
+    // The game keeps three copies of the episode index, written together, and
+    // branches on all of them - so a gate reading any of them is genuine.
+    bool IsEpisodeGlobal(const int32_t *p)
+    {
+        for (int i = 0; i < gGlobalCount; i++)
+            if (gGlobals[i] == p) return true;
+        return false;
+    }
     bool      gActive     = false;
     int       gMarkKey    = VK_F10;
     volatile LONG gMarking = 0;
@@ -165,7 +176,7 @@ void GateProfile_Init()
     {
         struct { int32_t *addr; int votes; } tally[8] = {};
         int used = 0;
-        for (size_t i = 0; i < kGateCount && i < 64; i++)
+        for (size_t i = 0; i < kGateCount; i++)
         {
             const uint8_t *at = (const uint8_t *)(base + kGates[i].rva);
             if (IsBadReadPtr(at, 8) || *at != kGates[i].opcode)
@@ -177,10 +188,17 @@ void GateProfile_Init()
             if (slot < 0 && used < 8) { tally[used].addr = cand; tally[used].votes = 0; slot = used++; }
             if (slot >= 0) tally[slot].votes++;
         }
+        // Keep every candidate with real support, not just the winner. There
+        // are THREE episode mirrors and the game branches on all of them, so
+        // accepting only the most popular one rejects every gate reading the
+        // other two - 53 of the 462, and it looked like a build mismatch.
         int best = 0;
         for (int t = 1; t < used; t++)
             if (tally[t].votes > tally[best].votes) best = t;
         if (used) gEpisode = tally[best].addr;
+        for (int t = 0; t < used; t++)
+            if (tally[t].votes >= 1 && gGlobalCount < 4)
+                gGlobals[gGlobalCount++] = tally[t].addr;
     }
 
     if (gEpisode == nullptr || IsBadReadPtr(gEpisode, 4))
@@ -200,7 +218,7 @@ void GateProfile_Init()
     }
 
     uint8_t *pen = gStubs;
-    size_t installed = 0, mismatched = 0, forced = 0, notApplied = 0;
+    size_t installed = 0, mismatched = 0, forced = 0, notApplied = 0, otherGlobal = 0;
     for (size_t i = 0; i < kGateCount; i++)
     {
         const GateEntry &e = kGates[i];
