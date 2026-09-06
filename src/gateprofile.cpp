@@ -200,7 +200,7 @@ void GateProfile_Init()
     }
 
     uint8_t *pen = gStubs;
-    size_t installed = 0, mismatched = 0, forced = 0;
+    size_t installed = 0, mismatched = 0, forced = 0, notApplied = 0;
     for (size_t i = 0; i < kGateCount; i++)
     {
         const GateEntry &e = kGates[i];
@@ -236,12 +236,23 @@ void GateProfile_Init()
 
         // Read the finished state of the jump this gate controls. TacePatch's
         // episodic patches NOP it, and a NOPed jump means the episodic path is
-        // taken whatever the comparison says. This is why the profiler has to
-        // initialise after every other patch has been applied.
-        const uint8_t *jump = at + e.length;
-        gGates[gCount].forced = (jump[0] == 0x90 && jump[1] == 0x90);
-        if (gGates[gCount].forced)
-            forced++;
+        // taken whatever the comparison says - so this must be read after every
+        // other patch has been applied, which is why the profiler goes last.
+        //
+        // The offset comes from the table rather than being assumed to sit
+        // right after the instruction: TacePatch NOPs at offsets from 3 to 44
+        // depending on the site, and guessing would mis-report 13 of the 95 as
+        // still locked.
+        gGates[gCount].forced = false;
+        if (e.patchOffset)
+        {
+            bool allNop = true;
+            for (uint8_t b = 0; b < e.patchBytes; b++)
+                if (at[e.patchOffset + b] != 0x90) allNop = false;
+            gGates[gCount].forced = allNop;
+            if (allNop) forced++;
+            else notApplied++;
+        }
 
         uint8_t *stub = pen;
         pen = EmitStub(pen, gCount, at, e.length);
