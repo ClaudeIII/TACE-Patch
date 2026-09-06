@@ -38,6 +38,9 @@ struct CrashConfig
     bool fullDump    = false;  // MiniDumpWithFullMemory - big files, rarely needed
     bool trackFiles  = true;   // IAT hooks for last-file / last-library
     bool chain       = true;   // call the handlers we displaced
+    bool veh         = true;   // also watch via a vectored handler
+    bool vehMiniDump = false;  // .dmp for first-chance reports too
+    int  maxLogs     = 8;      // reports per run, so a swallowed-exception loop cannot spam
     int  stackWords  = 128;    // dwords of annotated stack to print
     int  scanWords   = 4096;   // dwords of stack scanned for return addresses
     char dir[MAX_PATH]{};
@@ -789,6 +792,7 @@ constexpr int kMaxChained = 8;
 LPTOP_LEVEL_EXCEPTION_FILTER gChained[kMaxChained];
 volatile LONG                gChainCount = 0;
 LPTOP_LEVEL_EXCEPTION_FILTER gOurFilter = nullptr;
+bool                         gFilterSticks = false;
 
 void RememberDisplaced(LPTOP_LEVEL_EXCEPTION_FILTER f)
 {
@@ -807,17 +811,34 @@ void RememberDisplaced(LPTOP_LEVEL_EXCEPTION_FILTER f)
 
 DWORD WINAPI ReassertThread(LPVOID)
 {
+    bool reportedSuppression = false;
+
     // Tight for the ASI load window, then a slow heartbeat.
     for (int tick = 0;; tick++)
     {
         Sleep(tick < 60 ? 500 : 5000);
 
         LPTOP_LEVEL_EXCEPTION_FILTER prev = SetUnhandledExceptionFilter(gOurFilter);
-        if (prev != gOurFilter)
+        if (prev == gOurFilter)
+            continue;
+
+        RememberDisplaced(prev);
+
+        // A NULL previous filter means the slot was cleared rather than taken
+        // by another mod, which is the suppression case - and it repeats every
+        // single tick. Say it once.
+        if (!prev)
         {
-            RememberDisplaced(prev);
-            TACE_TRACE("[crash] re-asserted the top-level filter (displaced by %p)", prev);
+            if (!reportedSuppression)
+            {
+                reportedSuppression = true;
+                TACE_WARN("[crash] the top-level filter keeps being cleared - "
+                          "the vectored handler is what will catch crashes here");
+            }
+            continue;
         }
+
+        TACE_TRACE("[crash] re-asserted the top-level filter (displaced by %p)", prev);
     }
 }
 
@@ -1024,7 +1045,7 @@ void InstallFileTracking()
 
 DWORD gStartTick = 0;
 
-void BuildHeader(EXCEPTION_POINTERS *ep, const char *when)
+void BuildHeader(EXCEPTION_POINTERS *ep, const char *when, bool unhandled)
 {
     const EXCEPTION_RECORD *er  = ep->ExceptionRecord;
     const CONTEXT          *ctx = ep->ContextRecord;
@@ -1037,6 +1058,14 @@ void BuildHeader(EXCEPTION_POINTERS *ep, const char *when)
     Emit(" TacePatch crash log\r\n");
     Emit("================================================================\r\n");
     Emitf(" Time             : %s\r\n", when);
+    if (unhandled)
+        Emit(" Trigger          : UNHANDLED - nothing handled this, it is what"
+             " killed the process\r\n");
+    else
+        Emit(" Trigger          : FIRST-CHANCE - seen before any handler ran."
+             " The game may\r\n"
+             "                    still recover from this one; check whether"
+             " it actually died.\r\n");
 
     const DWORD ms = GetTickCount() - gStartTick;
     Emitf(" Uptime           : %02d:%02d:%02d\r\n",
@@ -1097,17 +1126,22 @@ void BuildHeader(EXCEPTION_POINTERS *ep, const char *when)
     }
 }
 
-volatile LONG gInHandler = 0;
-
-LONG WINAPI TaceCrashFilter(EXCEPTION_POINTERS *ep)
+// How the report was reached. The distinction matters: a top-level filter
+// only runs for an exception nothing handled, so it is definitely what killed
+// the process. A vectored handler sees exceptions first-chance, before anyone
+// has had the chance to handle them - so the game may well recover from what
+// it reports.
+enum ReportTrigger
 {
-    // A crash inside the crash handler must not loop.
-    if (InterlockedExchange(&gInHandler, 1) != 0)
-        return EXCEPTION_CONTINUE_SEARCH;
+    kTriggerUnhandled,
+    kTriggerFirstChance,
+};
 
-    if (!ep || !ep->ExceptionRecord || !ep->ContextRecord)
-        return EXCEPTION_CONTINUE_SEARCH;
+volatile LONG gReportBusy  = 0;
+volatile LONG gReportCount = 0;
 
+void WriteReport(EXCEPTION_POINTERS *ep, ReportTrigger trigger)
+{
     _fpreset();  // the FPU may be in a state that breaks our own float use
 
     SYSTEMTIME st{};
@@ -1127,7 +1161,7 @@ LONG WINAPI TaceCrashFilter(EXCEPTION_POINTERS *ep)
     const CONTEXT *ctx = ep->ContextRecord;
     const StackBounds sb = FindStackBounds(ctx->Esp);
 
-    BuildHeader(ep, when);
+    BuildHeader(ep, when, trigger == kTriggerUnhandled);
     PrintVerdict(ctx, sb, reinterpret_cast<uintptr_t>(ep->ExceptionRecord->ExceptionAddress));
     PrintCallStack(ctx, sb);
     PrintModState();
@@ -1139,10 +1173,23 @@ LONG WINAPI TaceCrashFilter(EXCEPTION_POINTERS *ep)
          " End of crash log. Please send the whole file, not a screenshot.\r\n"
          "================================================================\r\n");
 
-    CreateDirectoryA(gCfg.dir, nullptr);
+    // The folder is created on demand rather than at startup, so a run with no
+    // crashes leaves nothing behind. If it cannot be created - read-only game
+    // directory, say - fall back to writing beside the .asi rather than
+    // losing the report entirely.
+    char dir[MAX_PATH];
+    lstrcpynA(dir, gCfg.dir, sizeof(dir));
+    if (!CreateDirectoryA(dir, nullptr) && GetLastError() != ERROR_ALREADY_EXISTS)
+    {
+        lstrcpynA(dir, gCfg.dir, sizeof(dir));
+        if (char *slash = strrchr(dir, '\\'))
+            *slash = '\0';
+    }
+
+    const char *kind = trigger == kTriggerUnhandled ? "" : "_firstchance";
 
     char path[MAX_PATH];
-    wsprintfA(path, "%s\\TacePatch_%s.log", gCfg.dir, stamp);
+    wsprintfA(path, "%s\\TacePatch_%s%s.log", dir, stamp, kind);
 
     HANDLE h = CreateFileA(path, GENERIC_WRITE, FILE_SHARE_READ, nullptr,
                            CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -1154,12 +1201,38 @@ LONG WINAPI TaceCrashFilter(EXCEPTION_POINTERS *ep)
         CloseHandle(h);
     }
 
-    if (gCfg.miniDump)
+    // A .dmp per first-chance exception would be tens of megabytes each, for
+    // exceptions the game is probably about to handle. Only the real thing
+    // gets one unless the ini says otherwise.
+    if (gCfg.miniDump && (trigger == kTriggerUnhandled || gCfg.vehMiniDump))
     {
         char dmp[MAX_PATH];
-        wsprintfA(dmp, "%s\\TacePatch_%s.dmp", gCfg.dir, stamp);
+        wsprintfA(dmp, "%s\\TacePatch_%s%s.dmp", dir, stamp, kind);
         WriteMiniDump(dmp, ep);
     }
+}
+
+bool ShouldReport(EXCEPTION_POINTERS *ep)
+{
+    if (!ep || !ep->ExceptionRecord || !ep->ContextRecord)
+        return false;
+    if (gReportCount >= gCfg.maxLogs)
+        return false;
+    return true;
+}
+
+LONG WINAPI TaceCrashFilter(EXCEPTION_POINTERS *ep)
+{
+    if (!ShouldReport(ep))
+        return EXCEPTION_CONTINUE_SEARCH;
+
+    // A crash inside the crash handler must not loop.
+    if (InterlockedExchange(&gReportBusy, 1) != 0)
+        return EXCEPTION_CONTINUE_SEARCH;
+
+    InterlockedIncrement(&gReportCount);
+    WriteReport(ep, kTriggerUnhandled);
+    InterlockedExchange(&gReportBusy, 0);
 
     // Now let everyone we displaced write theirs. Ours is already on disk, so
     // a handler that terminates the process costs us nothing.
@@ -1174,6 +1247,59 @@ LONG WINAPI TaceCrashFilter(EXCEPTION_POINTERS *ep)
                 return r;
         }
     }
+
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+
+// Only the codes that mean something has genuinely gone wrong. Debugger and
+// C++ exception codes are routine traffic in a running process and must never
+// produce a crash log.
+bool IsFatalCode(DWORD code)
+{
+    switch (code)
+    {
+    case EXCEPTION_ACCESS_VIOLATION:
+    case EXCEPTION_ILLEGAL_INSTRUCTION:
+    case EXCEPTION_PRIV_INSTRUCTION:
+    case EXCEPTION_STACK_OVERFLOW:
+    case EXCEPTION_IN_PAGE_ERROR:
+    case EXCEPTION_INT_DIVIDE_BY_ZERO:
+    case EXCEPTION_ARRAY_BOUNDS_EXCEEDED:
+    case EXCEPTION_NONCONTINUABLE_EXCEPTION:
+    case EXCEPTION_INVALID_DISPOSITION:
+        return true;
+    default:
+        return false;
+    }
+}
+
+// The vectored handler.
+//
+// The top-level filter is not reliable in a modded GTA IV: something in this
+// install keeps SetUnhandledExceptionFilter returning NULL, so the filter we
+// register is never the one that runs. A vectored handler cannot be displaced
+// that way - it is a separate list, and ours stays on it.
+//
+// The cost is that it fires first-chance, before anyone has had a chance to
+// handle the exception, so a report from here is evidence rather than proof.
+// It is labelled as such in the log, it never writes a .dmp by default, and it
+// ALWAYS returns EXCEPTION_CONTINUE_SEARCH - observing only, never altering
+// what the process would have done.
+LONG CALLBACK TaceVectoredHandler(EXCEPTION_POINTERS *ep)
+{
+    if (!ep || !ep->ExceptionRecord)
+        return EXCEPTION_CONTINUE_SEARCH;
+    if (!IsFatalCode(ep->ExceptionRecord->ExceptionCode))
+        return EXCEPTION_CONTINUE_SEARCH;
+    if (!ShouldReport(ep))
+        return EXCEPTION_CONTINUE_SEARCH;
+
+    if (InterlockedExchange(&gReportBusy, 1) != 0)
+        return EXCEPTION_CONTINUE_SEARCH;
+
+    InterlockedIncrement(&gReportCount);
+    WriteReport(ep, kTriggerFirstChance);
+    InterlockedExchange(&gReportBusy, 0);
 
     return EXCEPTION_CONTINUE_SEARCH;
 }
@@ -1241,6 +1367,9 @@ void CrashLog_Init()
     gCfg.fullDump   = TaceIniBool("DEBUG", "CrashFullDump", false);
     gCfg.trackFiles = TaceIniBool("DEBUG", "CrashTrackFiles", true);
     gCfg.chain      = TaceIniBool("DEBUG", "CrashChain", true);
+    gCfg.veh        = TaceIniBool("DEBUG", "CrashVectored", true);
+    gCfg.vehMiniDump = TaceIniBool("DEBUG", "CrashVectoredMiniDump", false);
+    gCfg.maxLogs    = TaceIniInt("DEBUG", "CrashMaxLogs", 8);
     gCfg.stackWords = TaceIniInt("DEBUG", "CrashStackWords", 128);
     gCfg.scanWords  = TaceIniInt("DEBUG", "CrashScanWords", 4096);
 
@@ -1254,6 +1383,8 @@ void CrashLog_Init()
     if (gCfg.stackWords > 4096) gCfg.stackWords = 4096;
     if (gCfg.scanWords < 256)   gCfg.scanWords = 256;
     if (gCfg.scanWords > 65536) gCfg.scanWords = 65536;
+    if (gCfg.maxLogs < 1)       gCfg.maxLogs = 1;
+    if (gCfg.maxLogs > 64)      gCfg.maxLogs = 64;
 
     // Output directory: next to the .asi unless the ini overrides it.
     {
@@ -1307,6 +1438,32 @@ void CrashLog_Init()
 
     gOurFilter = &TaceCrashFilter;
     RememberDisplaced(SetUnhandledExceptionFilter(gOurFilter));
+
+    // Does the top-level filter actually stick? Setting it again must hand
+    // back what we just installed. In this game it does not: something keeps
+    // SetUnhandledExceptionFilter returning NULL, so the filter we register is
+    // never the one that runs, and the first in-game crash produced a
+    // ZolikaPatch dump and no log of ours. Worth stating plainly at startup
+    // rather than discovering it after the crash you needed.
+    {
+        LPTOP_LEVEL_EXCEPTION_FILTER readBack = SetUnhandledExceptionFilter(gOurFilter);
+        gFilterSticks = (readBack == gOurFilter);
+        if (!gFilterSticks)
+            TACE_WARN("[crash] the top-level exception filter is being suppressed "
+                      "(read back %p, not ours) - relying on the vectored handler",
+                      readBack);
+    }
+
+    if (gCfg.veh)
+    {
+        // First in the list, so we see the exception before any handler that
+        // might terminate the process. We only ever observe: the handler
+        // always returns EXCEPTION_CONTINUE_SEARCH.
+        if (AddVectoredExceptionHandler(1, &TaceVectoredHandler))
+            TACE_TRACE("[crash] vectored handler installed");
+        else
+            TACE_WARN("[crash] AddVectoredExceptionHandler failed");
+    }
 
     if (gCfg.trackFiles)
         InstallFileTracking();
