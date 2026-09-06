@@ -104,7 +104,7 @@ Dependencies are vendored in [`deps/`](deps/) — [Hooking.Patterns](deps/Hookin
 ## Credits
 
 - **[@ClaudeIII](https://github.com/ClaudeIII)** — author and maintainer of TacePatch and of [The Actual Complete Edition](https://gtaforums.com/topic/967792-grand-theft-auto-iv-the-actual-complete-edition).
-- **[@Flentric](https://github.com/Flentric)** — pain voices, gang and police loadouts, the debug console and patch reporting, the episode gate inventory and profiler, and the crash logger.
+- **[@Flentric](https://github.com/Flentric)** — co-programmer.
 - **[@akifle47](https://github.com/akifle47)** — features and contributions.
 - **[ThirteenAG](https://github.com/ThirteenAG)** — [FusionFix](https://github.com/ThirteenAG/GTAIV.EFLC.FusionFix), which the limit adjuster is ported from.
 
