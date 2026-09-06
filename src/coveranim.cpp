@@ -98,6 +98,20 @@ namespace
     // then the index is scaled by 12, so <n> is worth n*12 bytes.
     const char *kCurWeaponSig =
         "8B 44 24 04 8B 0D ? ? ? ? 56 50 E8 ? ? ? ? 8B 74 24 0C 8D 88 ? ? 00 00 8B 41 ? 83 C0 ?";
+    // The clip is not a plain field: GET_AMMO_IN_CLIP goes
+    //   weaponMgr = ped + <base>  ->  sub(weaponMgr) = weapon object
+    //   -> CPBuffer::get(obj + 92) -> XLivePBufferGetDWORD
+    // because ammo lives in a Games for Windows Live protected buffer. So both
+    // accessors are called rather than the memory being read directly.
+    //
+    //   mov eax,[ecx+2C] ; test eax,eax ; jz .. ; mov eax,[eax+25C] ; ...
+    const char *kWeaponObjSig =
+        "8B 41 2C 85 C0 74 1E 8B 80 5C 02 00 00 85 C0 74 20 8B 51 18 83 C2 05 56 8B 70 18 8D 14 52 3B 34 91 5E 75 0D C3";
+    //   push ecx ; mov ecx,[ecx] ; lea eax,[esp] ; push eax ; push 0 ; push ecx
+    //   mov [esp+0C],0 ; call XLivePBufferGetDWORD ; mov eax,[esp] ; pop ecx ; ret
+    const char *kPBufferGetSig =
+        "51 8B 09 8D 04 24 50 6A 00 51 C7 44 24 0C 00 00 00 00 E8 ? ? ? ? 8B 04 24 59 C3";
+
     constexpr int kWeapBaseOperand = 23;
     constexpr int kWeapSlotOperand = 29;
     constexpr int kWeapAddOperand  = 32;
@@ -126,16 +140,27 @@ namespace
     int         *gLocalPlayer  = nullptr;
     uint8_t    **gPlayers      = nullptr;
     uint32_t     gPedOnPlayer  = 0;
+    uint32_t     gWeapMgrOfs   = 0;   // ped -> weapon manager
     uint32_t     gWeapSlotOfs  = 0;
     uint32_t     gWeapArrayOfs = 0;
+
+    // Both are __thiscall with no arguments; __fastcall with an unused edx is
+    // the usual way to spell that for a plain function pointer.
+    using ThisCall0 = int(__fastcall *)(void *ecx, void *edx);
+    ThisCall0 gWeaponObj  = nullptr;
+    ThisCall0 gPBufferGet = nullptr;
 
     struct Override { int weaponId; uint32_t animId; std::string weapon, anim; };
     std::vector<Override> gOverrides;
 
+    bool  gCutWhenEmpty = true;   // end the blind-fire animation on an empty clip
+    int   gCutDelayMs   = 0;      // ... but not until this long after it empties
+    float gCutAt        = 1.0f;   // the point to jump to; 1.0 is the end
     uint32_t gShotgunAnimId = 0;
     uint32_t gVanillaKey[kCoverGroupCount]{};   // per group - keys are per dictionary
     bool     gHaveVanillaKey = false;
     int      gAppliedFor = -1;   // weapon id applied, -1 = vanilla
+    bool     gAppliedEmpty = false;
 
     // ---- helpers ---------------------------------------------------------
 
@@ -164,6 +189,103 @@ namespace
         if (slot < 0 || slot > 16)
             return -1;
         return *reinterpret_cast<int *>(ped + gWeapArrayOfs + kWeaponStride * slot);
+    }
+
+    // The animation instance currently playing `animId` on this ped, or null.
+    //
+    // A walk of the blender's association list, replicated rather than called:
+    // the game's own lookup is __thiscall with stack arguments, and getting
+    // that wrong is a crash, whereas these reads are harmless. Every offset
+    // below was verified byte-identical between 1.0.8.0 and EFLC 1.1.2.0.
+    //
+    //   ped+0x78      -> blender
+    //   blender+0x1A28-> first node
+    //   node+0x48     == 1 for a live node
+    //   node+4        -> the association
+    //   node+0x8C     -> next node
+    //   assoc+0x40    != 0
+    //   assoc+0x0C    == the animation id
+    uint8_t *FindPlayingAnim(uint8_t *ped, uint32_t animId)
+    {
+        uint8_t *blender = *reinterpret_cast<uint8_t **>(ped + 0x78);
+        if (!blender)
+            return nullptr;
+
+        uint8_t *node = *reinterpret_cast<uint8_t **>(blender + 0x1A28);
+        for (int guard = 0; node && guard < 256; guard++)
+        {
+            uint8_t *assoc = node + 4;
+            if (*reinterpret_cast<uint16_t *>(node + 0x48) == 1 &&
+                *reinterpret_cast<uint32_t *>(assoc + 0x40) != 0 &&
+                *reinterpret_cast<uint32_t *>(assoc + 0x0C) == animId)
+                return assoc;
+            node = *reinterpret_cast<uint8_t **>(node + 0x8C);
+        }
+        return nullptr;
+    }
+
+    // Every animation id currently playing on this ped, for diagnosis when a
+    // lookup comes up empty.
+    void TracePlayingAnims(uint8_t *ped)
+    {
+        uint8_t *blender = *reinterpret_cast<uint8_t **>(ped + 0x78);
+        if (!blender)
+        {
+            TACE_TRACE("[cover] ped has no animation blender");
+            return;
+        }
+        uint8_t *node = *reinterpret_cast<uint8_t **>(blender + 0x1A28);
+        int n = 0;
+        for (int guard = 0; node && guard < 256; guard++)
+        {
+            uint8_t *assoc = node + 4;
+            if (*reinterpret_cast<uint16_t *>(node + 0x48) == 1 &&
+                *reinterpret_cast<uint32_t *>(assoc + 0x40) != 0)
+            {
+                TACE_TRACE("[cover]   playing id 0x%X",
+                           *reinterpret_cast<uint32_t *>(assoc + 0x0C));
+                n++;
+            }
+            node = *reinterpret_cast<uint8_t **>(node + 0x8C);
+        }
+        TACE_TRACE("[cover] %d animation(s) playing", n);
+    }
+
+    // Wind a playing animation forward to `target`. setAnimCurrentTime clamps
+    // to 0..1 and writes exactly these two floats, so 1.0 means finished -
+    // which lets a looping blind-fire stop and the reload begin. A lower value
+    // leaves a tail of animation still to play, which reads less abruptly.
+    //
+    // Only ever winds FORWARD. This is re-asserted every tick while the clip is
+    // empty, and writing the same value repeatedly would otherwise pin the
+    // animation in place and stop it ever finishing.
+    bool EndPlayingAnim(uint8_t *ped, uint32_t animId, float target)
+    {
+        uint8_t *assoc = FindPlayingAnim(ped, animId);
+        if (!assoc)
+            return false;
+
+        float *now = reinterpret_cast<float *>(assoc + 0x4C);
+        if (*now >= target)
+            return false;
+
+        *now = target;
+        *reinterpret_cast<float *>(assoc + 0x50) = target;
+        return true;
+    }
+
+    // Rounds in the current weapon's clip, or -1 if it cannot be read.
+    int ClipAmmo()
+    {
+        if (!gWeaponObj || !gPBufferGet)
+            return -1;
+        uint8_t *ped = PlayerPed();
+        if (!ped)
+            return -1;
+        const int obj = gWeaponObj(ped + gWeapMgrOfs, nullptr);
+        if (!obj)
+            return -1;
+        return gPBufferGet(reinterpret_cast<void *>(obj + 92), nullptr);
     }
 
     uint8_t *CoverGroup(int index)
@@ -268,10 +390,15 @@ namespace
 
         bool reportedFirst = false;
         int  quietTicks = 0;
+        int   lastAmmo = -2;
+        DWORD emptySince = 0;
 
         for (;;)
         {
-            Sleep(100);
+            // Poll faster while an override is in hand: the whole point is to
+            // catch the clip emptying within a beat of the animation, not a
+            // tenth of a second later.
+            Sleep(gAppliedFor >= 0 ? 25 : 100);
 
             const int weapon = CurrentWeapon();
 
@@ -292,15 +419,78 @@ namespace
             const Override *o = weapon >= 0 ? OverrideFor(weapon) : nullptr;
             const int want = o ? o->weaponId : -1;
 
-            if (want == gAppliedFor)
+            // Once the clip is empty the animation has nothing left to fire,
+            // but a looping one carries on regardless - AK47_BLINDFIRE spends
+            // about five seconds on an empty chamber before the game reaches
+            // the reload, against 1.4s for a non-looping one.
+            //
+            // Swapping the key cannot help here: the animation is resolved
+            // when the burst starts and cached for its duration, so the change
+            // lands on an instance that has already been chosen (measured - the
+            // swap fired on the same millisecond and the dead time did not
+            // move). Ending the playing instance is what actually works.
+            bool empty = false;
+            if (o)
+            {
+                const int ammo = ClipAmmo();
+                empty = (ammo == 0);
+
+                if (ammo != lastAmmo)
+                {
+                    if (trace)
+                        TACE_TRACE("[cover] %s clip: %d", o->weapon.c_str(), ammo);
+                    if (empty)
+                        emptySince = GetTickCount();
+                    lastAmmo = ammo;
+                }
+
+                // Keep asserting it: the loop may start another cycle, and each
+                // one is a fresh instance to finish off.
+                //
+                // Search for the SHOTGUN id, not the override's. The engine
+                // still asks for slot 24's animation - all we changed is what
+                // that id resolves to - so the live association is tagged
+                // 0x112 even while it is playing the AK47 clip.
+                // Hold off for CutDelay so the last shot's animation is not
+                // snatched away the instant the chamber runs dry.
+                const bool delayPassed =
+                    emptySince && (GetTickCount() - emptySince) >= static_cast<DWORD>(gCutDelayMs);
+
+                if (empty && gCutWhenEmpty && delayPassed)
+                {
+                    uint8_t *ped = PlayerPed();
+                    const bool ended = ped && EndPlayingAnim(ped, gShotgunAnimId, gCutAt);
+                    if (trace && !gAppliedEmpty)
+                    {
+                        if (ended)
+                            TACE_TRACE("[cover] %s empty - ended the blind-fire animation (id 0x%X)",
+                                       o->weapon.c_str(), gShotgunAnimId);
+                        else if (ped)
+                        {
+                            TACE_TRACE("[cover] %s empty - no animation with id 0x%X is playing:",
+                                       o->weapon.c_str(), gShotgunAnimId);
+                            TracePlayingAnims(ped);
+                        }
+                    }
+                }
+            }
+
+            if (want == gAppliedFor && empty == gAppliedEmpty)
                 continue;
 
-            ApplyKey(o ? o->animId : 0);
-            gAppliedFor = want;
+            if (!o)
+                ApplyKey(0);
+            else
+                ApplyKey(o->animId);
+
+            gAppliedFor   = want;
+            gAppliedEmpty = empty;
 
             if (trace)
             {
-                if (o)
+                if (o && empty)
+                    ;   // already reported above
+                else if (o)
                     TACE_TRACE("[cover] %s in hand - blind-fire now plays %s (id 0x%X)",
                                o->weapon.c_str(), o->anim.c_str(), o->animId);
                 else
@@ -379,9 +569,22 @@ void CoverAnim_Init()
         const uint32_t base = *pattern.get_first<uint32_t>(kWeapBaseOperand);
         const uint8_t  slot = *pattern.get_first<uint8_t>(kWeapSlotOperand);
         const uint8_t  add  = *pattern.get_first<uint8_t>(kWeapAddOperand);
+        gWeapMgrOfs   = base;
         gWeapSlotOfs  = base + slot;
         gWeapArrayOfs = base + add * kWeaponStride;
     }
+
+    pattern = find_pattern(kWeaponObjSig);
+    if (!pattern.empty())
+        gWeaponObj = pattern.get_first<int(__fastcall)(void *, void *)>(0);
+    else
+        TACE_WARN("[cover] weapon object accessor: signature not found - clip ammo unavailable");
+
+    pattern = find_pattern(kPBufferGetSig);
+    if (!pattern.empty())
+        gPBufferGet = pattern.get_first<int(__fastcall)(void *, void *)>(0);
+    else
+        TACE_WARN("[cover] CPBuffer::get: signature not found - clip ammo unavailable");
 
     if (trace)
         TACE_TRACE("[cover] players %p  ped+0x%X  weapon slot ped+0x%X  weapons ped+0x%X",
@@ -410,6 +613,23 @@ void CoverAnim_Init()
         gOverrides.push_back({ w.id, animId, w.name, value });
         TACE_INFO("[cover] %s blind-fires with %s (id 0x%X)", w.name, value.c_str(), animId);
     }
+
+    gCutWhenEmpty = TaceIniBool("COVERANIM", "CutWhenEmpty", true);
+    gCutDelayMs   = TaceIniInt("COVERANIM", "CutDelay", 0);
+    if (gCutDelayMs < 0)    gCutDelayMs = 0;
+    if (gCutDelayMs > 3000) gCutDelayMs = 3000;
+
+    // Written as a percentage so the ini stays whole numbers.
+    {
+        int at = TaceIniInt("COVERANIM", "CutAt", 100);
+        if (at < 10)  at = 10;
+        if (at > 100) at = 100;
+        gCutAt = static_cast<float>(at) / 100.0f;
+    }
+
+    TACE_INFO("[cover] cut on an empty clip: %s (delay %dms, wind to %d%%)",
+              gCutWhenEmpty ? "yes" : "no", gCutDelayMs,
+              static_cast<int>(gCutAt * 100.0f));
 
     if (gOverrides.empty())
     {
