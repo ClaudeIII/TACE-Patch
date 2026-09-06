@@ -5,6 +5,6 @@
 *.ipdb
 *.iobj
 /build/Release/TacePatch.tlog
-build/Release/vc143.pdb
+build/Release/vc*.pdb
 *.user
 *.filters
