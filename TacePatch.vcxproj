@@ -152,11 +152,13 @@
     <ClCompile Include="src\painvoice.cpp" />
     <ClCompile Include="src\gangweapons.cpp" />
     <ClCompile Include="src\copweapons.cpp" />
+    <ClCompile Include="src\crashlog.cpp" />
     <ClCompile Include="src\gateprofile.cpp" />
     <ClCompile Include="src\main.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Config.h" />
+    <ClInclude Include="src\CrashLog.h" />
     <ClInclude Include="src\LimitAdjuster.h" />
     <ClInclude Include="src\GateTable.h" />
     <ClInclude Include="src\Log.h" />
