@@ -153,6 +153,7 @@
     <ClCompile Include="src\gangweapons.cpp" />
     <ClCompile Include="src\copweapons.cpp" />
     <ClCompile Include="src\coveranim.cpp" />
+    <ClCompile Include="src\copanims.cpp" />
     <ClCompile Include="src\crashlog.cpp" />
     <ClCompile Include="src\gateprofile.cpp" />
     <ClCompile Include="src\main.cpp" />
