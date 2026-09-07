@@ -40,6 +40,8 @@ Anything that doesn't match on your build is **reported and skipped**, never app
 | **Pain voices** | Per-model pain voices, so Niko, Johnny and Luis stop sharing one grunt. Needs a few extra wave slots — see [`assets/waveslots-painvoice.xml`](assets/waveslots-painvoice.xml). |
 | **Gang loadouts** | Configurable weapons per gang, instead of the hardcoded vanilla set. |
 | **Police loadouts** | Configurable police weapons, including rooftop snipers and helicopter crewmen. |
+| **Weapon animations** | Carry guns the way cops do: your own walkstyle kept, the gun pose layered over it, instead of `move_rifle` replacing how you walk. Off by default. |
+| **Cover blind-fire** | Per-weapon cover blind-fire animations, so the sawn-off and the AA-12 stop pumping a gun that has nothing to pump. Off by default. |
 | **Episode gates** | Content the base game locks to one episode, opened across all three. |
 | **Debug console** | A live console beside the game with per-subsystem tracing, plus a log file. |
 | **Gate profiler** | Press a key before an action to see which episode gates it touched, and which locked you out. |
