@@ -41,13 +41,14 @@ Anything that doesn't match on your build is **reported and skipped**, never app
 | **Gang loadouts** | Configurable weapons per gang, instead of the hardcoded vanilla set. |
 | **Police loadouts** | Configurable police weapons, including rooftop snipers and helicopter crewmen. |
 | **Phone** | Run and sprint with the phone out, instead of being held to a walk. |
+| **Silenced weapons** | Guns flagged `SILENCED` in `WeaponInfo.xml` really are quiet: no more panicking every ped within 100 m, only peds right beside the shooter or looking at them react. |
 | **Cover blind-fire** | Per-weapon cover blind-fire animations, so the sawn-off and the AA-12 stop pumping a gun that has nothing to pump. Off by default. |
 | **Episode gates** | Content the base game locks to one episode, opened across all three. |
 | **Debug console** | A live console beside the game with per-subsystem tracing, plus a log file. |
 | **Gate profiler** | Press a key before an action to see which episode gates it touched, and which locked you out. |
 | **Crash logger** | Tells you whether a crash was TacePatch's fault. [See below.](#the-crash-logger) |
 
-Everything lives in `TacePatch.ini`, under `[LIMITS]`, `[BLIPSPRITES]`, `[DEBUG]`, `[PAINVOICE]`, `[GANGWEAPONS]`, `[COPWEAPONS]` and `[PHONE]`. Every key documents itself inline.
+Everything lives in `TacePatch.ini`, under `[LIMITS]`, `[BLIPSPRITES]`, `[DEBUG]`, `[PAINVOICE]`, `[GANGWEAPONS]`, `[COPWEAPONS]`, `[PHONE]` and `[SILENCED]`. Every key documents itself inline.
 
 ---
 
