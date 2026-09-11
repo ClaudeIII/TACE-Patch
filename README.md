@@ -11,7 +11,7 @@ The ASI patch behind **[GTA IV: The Actual Complete Edition](https://gtaforums.c
 ## Install
 
 1. Grab **[TacePatch.7z](https://github.com/ClaudeIII/TACE-Patch/releases/latest)** from the latest release.
-2. Drop `TacePatch.asi` and `TacePatch.ini` next to `GTAIV.exe`.
+2. Drop `TacePatch.asi` and `TacePatch.ini` next to `GTAIV.exe`. Everything TacePatch writes — its log, crash reports, extra script car generator saves — goes in a `TacePatch` folder it makes beside them.
 3. Launch the game.
 
 You need an ASI loader already installed. That's it — the defaults are the shipping configuration, so there is nothing to configure unless you want to.
@@ -26,7 +26,7 @@ You need an ASI loader already installed. That's it — the defaults are the shi
 
 Patches are byte-signature searches rather than hardcoded addresses, and a call site can carry a signature per build (1.0.7.0, 1.0.8.0, Complete Edition), so other versions may work — but 1.0.8.0 is what this is built and tested on.
 
-Anything that doesn't match on your build is **reported and skipped**, never applied to the wrong place, so a mismatch degrades to vanilla behaviour instead of corrupting the game. `TacePatch.log` tells you exactly what applied and what didn't.
+Anything that doesn't match on your build is **reported and skipped**, never applied to the wrong place, so a mismatch degrades to vanilla behaviour instead of corrupting the game. `TacePatch\TacePatch.log` tells you exactly what applied and what didn't.
 
 > **Don't run it with FusionFix's limit adjuster.** TacePatch's `[LIMITS]` is ported from it — both raising the same limits is asking for trouble.
 
@@ -36,17 +36,18 @@ Anything that doesn't match on your build is **reported and skipped**, never app
 
 | Feature | |
 |---|---|
-| **Engine limits** | Anim `.wad` dictionaries, the model store and more, raised past their vanilla caps. Ported from FusionFix's limit adjuster. |
+| **Engine limits** | Anim `.wad` dictionaries, car generators, radar blip sprites, the model store and more, raised past their vanilla caps. Partly ported from FusionFix's limit adjuster. |
 | **Pain voices** | Per-model pain voices, so Niko, Johnny and Luis stop sharing one grunt. Needs a few extra wave slots — see [`assets/waveslots-painvoice.xml`](assets/waveslots-painvoice.xml). |
 | **Gang loadouts** | Configurable weapons per gang, instead of the hardcoded vanilla set. |
 | **Police loadouts** | Configurable police weapons, including rooftop snipers and helicopter crewmen. |
+| **Phone** | Run and sprint with the phone out, instead of being held to a walk. |
 | **Cover blind-fire** | Per-weapon cover blind-fire animations, so the sawn-off and the AA-12 stop pumping a gun that has nothing to pump. Off by default. |
 | **Episode gates** | Content the base game locks to one episode, opened across all three. |
 | **Debug console** | A live console beside the game with per-subsystem tracing, plus a log file. |
 | **Gate profiler** | Press a key before an action to see which episode gates it touched, and which locked you out. |
 | **Crash logger** | Tells you whether a crash was TacePatch's fault. [See below.](#the-crash-logger) |
 
-Everything lives in `TacePatch.ini`, under `[LIMITS]`, `[DEBUG]`, `[PAINVOICE]`, `[GANGWEAPONS]` and `[COPWEAPONS]`. Every key documents itself inline.
+Everything lives in `TacePatch.ini`, under `[LIMITS]`, `[BLIPSPRITES]`, `[DEBUG]`, `[PAINVOICE]`, `[GANGWEAPONS]`, `[COPWEAPONS]` and `[PHONE]`. Every key documents itself inline.
 
 ---
 
@@ -54,7 +55,7 @@ Everything lives in `TacePatch.ini`, under `[LIMITS]`, `[DEBUG]`, `[PAINVOICE]`,
 
 GTA IV crashes. The question that costs the most time is always *"was it the mod?"* — normally answered by opening a `.dmp` in a debugger, finding the module bases, and scanning the faulting stack by hand.
 
-TacePatch writes that answer at the moment of the crash, into a `TacePatch Crashes` folder next to the `.asi`:
+TacePatch writes that answer at the moment of the crash, into a `TacePatch\Crashes` folder next to the `.asi`:
 
 ```
 --- Verdict ---------------------------------------------------
