@@ -30,11 +30,6 @@ void GangWeapons_Init();
 void CopWeapons_Init();
 void GateProfile_Init();
 void CoverAnim_Init();
-void CopAnims_Init();
-
-// copanims.cpp - the group the player should actually move with. Returns its
-// argument unchanged when the feature is off or the ped is not the player.
-extern "C" int __cdecl CopAnims_MoveGroup(void *ped, int group);
 
 //requests the animation to be loaded if it hasnt
 bool (*CAnimMgr__HasAnimLoaded)(uint32_t animGroup) = nullptr;
@@ -124,28 +119,6 @@ void __declspec(naked) CPedMoveBlendOnFoot__SetAnimGroupH()
 {
     _asm
     {
-        // [COPANIMS] first refusal: the player keeps their own walkstyle
-        // instead of move_rifle / move_f@armed. esi is the CPed at every call
-        // site this hook is installed on. A group that comes back unchanged
-        // means the feature is off, or this is not the player - carry on to
-        // the per-model override below.
-        //
-        // CopAnims_MoveGroup is __cdecl and may clobber ecx, so the move blend
-        // is reloaded rather than relied on.
-        mov edx, [esp+4]
-        push edx
-        push esi
-        call CopAnims_MoveGroup
-        add esp, 8
-        cmp eax, [esp+4]
-        je NotPlayerWalkstyle
-
-        push eax
-        mov ecx, [esi+0xA90]
-        call CPedMoveBlendOnFoot__SetAnimGroupO
-        ret 4
-
-        NotPlayerWalkstyle:
         mov edx, [esp+4]
         cmp edx, ANIMGRP_MOVE_RIFLE
         je IsRifleOrRpgAnim
@@ -442,7 +415,6 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
         GangWeapons_Init();
         CopWeapons_Init();
         CoverAnim_Init();
-        CopAnims_Init();
 
         hook::pattern pattern {};
 
