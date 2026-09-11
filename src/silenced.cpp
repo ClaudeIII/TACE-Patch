@@ -25,9 +25,9 @@
 //     ShockingEvents.dat gives it a 100 m AUDIBLE range - every ambient ped
 //     that close panics. This is most of "they can still hear it".
 //   - CEventGunShot::affectsPed judges a silenced shot as seen rather than
-//     heard, but "seen" is generous: any ped within 45 m (a cop: their own
-//     sense range) with the shot anywhere in the half in front of them and a
-//     clear line of sight.
+//     heard, but "seen" is generous: any ped within 45 m (a mission ped: its
+//     own sense range) with the shot anywhere in the half in front of them and
+//     a clear line of sight.
 //
 // So a silenced weapon posts no GunshotFired, and the gunshot event's
 // affectsPed gets a real range and field of view around the vanilla test,
@@ -48,6 +48,8 @@ namespace
     constexpr size_t kEventShooter  = 0x18;
     constexpr size_t kEventMuzzle   = 0x20;   // where the shot came from
     constexpr size_t kEventSilenced = 0x40;   // the weapon's SILENCED flag
+    constexpr size_t kEventWeapon   = 0x48;
+    constexpr int    kStickyBomb    = 36;     // EPISODIC_16
 
     // CEntity: its own position, or its matrix's (forward at +0x10, position at +0x30)
     constexpr size_t kEntityPos     = 0x10;
@@ -163,8 +165,10 @@ namespace
         const float dx = from[0] - at[0], dy = from[1] - at[1], dz = from[2] - at[2];
         const float dist = std::sqrt(dx * dx + dy * dy + dz * dz);
 
-        // Close enough to hear it: judged as an ordinary shot.
-        if (dist <= gHearRange)
+        // Close enough to hear it: judged as an ordinary shot. Not the sticky
+        // bomb - vanilla keeps ambient peds out of its silenced event, and
+        // clearing the flag would let them in.
+        if (dist <= gHearRange && Field<int>(event, kEventWeapon) != kStickyBomb)
         {
             const uint8_t silenced = event[kEventSilenced];
             event[kEventSilenced] = 0;
