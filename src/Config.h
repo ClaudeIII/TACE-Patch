@@ -27,6 +27,21 @@ inline const std::string &TaceIniPath()
     return path;
 }
 
+// TacePatch's own folder, beside the .asi and named after it ("TacePatch\"),
+// with a trailing backslash. Everything TacePatch writes goes in here - the log,
+// Crashes\, Saves\ - so only the .asi and its ini sit beside GTAIV.exe. The
+// folder itself is created here; `sub` names one inside it, which callers create
+// when they first write to it.
+inline std::string TaceFolder(const char *sub = nullptr)
+{
+    const std::string &ini = TaceIniPath();
+    std::string dir = ini.substr(0, ini.size() - 4) + "\\";   // "...\TacePatch.ini" -> "...\TacePatch\"
+    CreateDirectoryA(dir.c_str(), nullptr);
+    if (sub != nullptr)
+        dir = dir + sub + "\\";
+    return dir;
+}
+
 // Reads the raw value. Trailing "// ..." comments (FusionFix's ini layout) are
 // left intact here and handled by the numeric parser below; string callers get
 // them trimmed.
