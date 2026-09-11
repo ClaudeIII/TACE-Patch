@@ -30,6 +30,7 @@ void GangWeapons_Init();
 void CopWeapons_Init();
 void GateProfile_Init();
 void CoverAnim_Init();
+void Phone_Init();
 
 //requests the animation to be loaded if it hasnt
 bool (*CAnimMgr__HasAnimLoaded)(uint32_t animGroup) = nullptr;
@@ -754,6 +755,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
         // above searches for - so it must not run until they have all been
         // applied. It also needs to see the finished state to tell a gate
         // TacePatch has forced open from one that is still episode-locked.
+        Phone_Init();   // rewrites a code byte - after every signature search above
         GateProfile_Init();
 
         TaceLog_Summary();
