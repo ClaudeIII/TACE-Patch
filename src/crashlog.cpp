@@ -1410,10 +1410,9 @@ void CrashLog_Init()
                     *dot = '\0';
             }
 
-            char *slash = strrchr(self, '\\');
-            if (slash)
-                *slash = '\0';
-            wsprintfA(gCfg.dir, "%s\\%s Crashes", self, gSelfStem[0] ? gSelfStem : "TacePatch");
+            std::string dir = TaceFolder("Crashes");
+            dir.pop_back();   // the paths built from it add their own separator
+            lstrcpynA(gCfg.dir, dir.c_str(), sizeof(gCfg.dir));
         }
     }
 

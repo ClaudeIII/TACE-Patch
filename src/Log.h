@@ -13,7 +13,7 @@
 // TacePatch logging.
 //
 // Two sinks behind one call:
-//   * TacePatch.log next to the .asi - the post-mortem record. The limit
+//   * TacePatch\TacePatch.log beside the .asi - the post-mortem record. The limit
 //     adjusters patch code and pointers before the game has finished starting,
 //     so a crash leaves no other trace of which signature matched and which
 //     silently didn't.
@@ -65,21 +65,15 @@ inline TaceLogState &TaceLogState_()
     return s;
 }
 
+// TacePatch\TacePatch.log - see TaceFolder.
 inline const std::string &TaceLogPath()
 {
     static const std::string path = []
     {
-        char buf[MAX_PATH]{};
-        HMODULE module = nullptr;
-        GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                           reinterpret_cast<LPCSTR>(&TaceLogPath), &module);
-        GetModuleFileNameA(module, buf, MAX_PATH);
-
-        std::string p = buf;
-        const size_t dot = p.find_last_of('.');
-        if (dot != std::string::npos)
-            p = p.substr(0, dot);
-        return p + ".log";
+        const std::string &ini = TaceIniPath();
+        std::string name = ini.substr(ini.find_last_of("\\/") + 1);   // "TacePatch.ini"
+        name.resize(name.size() - 4);
+        return TaceFolder() + name + ".log";
     }();
     return path;
 }
