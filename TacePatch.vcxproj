@@ -154,6 +154,7 @@
     <ClCompile Include="src\copweapons.cpp" />
     <ClCompile Include="src\coveranim.cpp" />
     <ClCompile Include="src\phone.cpp" />
+    <ClCompile Include="src\silenced.cpp" />
     <ClCompile Include="src\crashlog.cpp" />
     <ClCompile Include="src\gateprofile.cpp" />
     <ClCompile Include="src\main.cpp" />
