@@ -220,10 +220,10 @@ namespace
     // frame - "PHONE CHECK - player is not free for an ambient task and is not
     // in a car" in their own debug text - and cover reads as busy. The native
     // walks the ped's task-info list (intelligence +0x2E0) and has one caller,
-    // its wrapper. For the phone scripts alone, a player whose only running
-    // task tree is his on-foot one, in cover, now reads as free. (The
-    // phone-in-hand pose while browsing comes from CTaskComplexPlayerIdles,
-    // which does not run in cover. Calls are below.)
+    // its wrapper. For phone checks alone (the phone scripts', InPhoneCheck's),
+    // a player whose only running task tree is his on-foot one, in cover, now
+    // reads as free. (The phone-in-hand pose while browsing comes from
+    // CTaskComplexPlayerIdles, which does not run in cover. Calls are below.)
 
     constexpr int    kTypePlayerInCover = 1046;    // CTaskComplexPlayerInCover
     constexpr size_t kIntelTaskInfo     = 0x2E0;   // the task-info list the native walks
@@ -234,7 +234,8 @@ namespace
 
     bool gPhoneInCover     = false;
     bool gPhoneIntoVehicle = false;
-    bool gCallsOnFoot      = false;
+    bool gCoverInCalls     = false;   // take cover during a call
+    bool gVehiclesInCalls  = false;   // get into a vehicle during a call
 
     using FreeForAmbientFn = bool(__cdecl *)(int player);
     using PlayerByNumFn    = uint8_t *(__cdecl *)(int player);
@@ -263,6 +264,11 @@ namespace
 
     // Every `call rel32` to target in the game's code: returns how many, keeps
     // the first max.
+    // How many call sites of one function the callers below can record. Each of
+    // them patches every site it finds, so a count outside what the known builds
+    // hold is reported rather than assumed.
+    constexpr int kMaxEntrySites = 8;
+
     int CallersOf(const uint8_t *target, uint8_t **sites, int max)
     {
         int count = 0;
@@ -306,9 +312,9 @@ namespace
     // On foot and nothing outranks it: his default task (CTaskComplexPlayerOnFoot)
     // is the only one running. A stock call puts its task above it, which is why
     // he could neither take cover nor get into a vehicle until it ended; with
-    // CoverAndVehiclesInCalls a call from here runs beside it, as in cover.
+    // CoverInCalls or VehiclesInCalls a call from here runs beside it, as in
+    // cover (whichever is off stays held back, HoldEntriesDuringCalls).
     constexpr int    kTypePlayerOnFoot  = 4;       // CTaskComplexPlayerOnFoot
-    constexpr int    kTypePlayerIdles   = 8;       // CTaskComplexPlayerIdles
     constexpr size_t kPedFlagsInVehicle = 0x26C;   // & 4: in a vehicle (what the phone set picker tests)
 
     bool OnFootOnly(const uint8_t *ped)
@@ -396,6 +402,33 @@ namespace
     void CheckSideCall(uint8_t *ped);         // calls in cover, below
     void TextPoseInCover(uint8_t *ped);       // the texting pose in cover, below
 
+    // The story, friend and date scripts run the same phone check as the phone's
+    // own scripts before they call the player - in base IV 71 of the 117 scripts
+    // asking IS_PLAYER_FREE_FOR_AMBIENT_TASK carry it - so in cover their calls
+    // waited until he left it. In every copy the check asks NETWORK_HAVE_SUMMONS
+    // 310 bytecode bytes before it asks whether he is free; the other 46 (vendors,
+    // ATMs, pool, taxis...) never do. So a thread that has just asked
+    // NETWORK_HAVE_SUMMONS is running a phone check, and gets the phone scripts'
+    // answer. The mark is used up by the next free-for-ambient question.
+    using SummonsFn = bool(__cdecl *)();
+    SummonsFn   gSummons       = nullptr;
+    const void *gSummonsThread = nullptr;
+    DWORD       gSummonsAt     = 0;
+
+    bool __cdecl SummonsHook()
+    {
+        gSummonsThread = gRunningThread();
+        gSummonsAt     = GetTickCount();
+        return gSummons();
+    }
+
+    bool InPhoneCheck(const void *thread)
+    {
+        const bool yes = thread != nullptr && thread == gSummonsThread && GetTickCount() - gSummonsAt <= 50;
+        gSummonsThread = nullptr;
+        return yes;
+    }
+
     bool __cdecl FreeForAmbientHook(int player)
     {
         const bool game = gFreeForAmbient(player);
@@ -406,12 +439,13 @@ namespace
             CheckSideCall(ped);   // the phone scripts ask every frame
             TextPoseInCover(ped);
         }
+        void *thread = gRunningThread();
+        const bool check = InPhoneCheck(thread);   // uses the mark up either way
         if (game && !gTrace)
             return true;
 
-        void *thread = gRunningThread();
         const char *script = thread != nullptr ? gScriptName(thread) : nullptr;
-        if (ped == nullptr || script == nullptr || !IsPhoneScript(script))
+        if (ped == nullptr || script == nullptr || !(check || IsPhoneScript(script)))
             return game;
 
         const bool cover    = OnlyInCover(ped);
@@ -422,14 +456,15 @@ namespace
         {
             // Changes only - the phone scripts ask every frame.
             static int last = -1;
-            const int state = int(game) | int(cover) << 1 | int(answer) << 2 | int(entering) << 3;
+            const int state = int(game) | int(cover) << 1 | int(answer) << 2 | int(entering) << 3 | int(check) << 4;
             if (state != last)
             {
                 last = state;
                 char tasks[400];
                 DescribeTasks(ped, tasks, sizeof(tasks));
-                TaceLog("[phone] %s: free for an ambient task? game %s, in cover %d, getting in a vehicle %d -> %s | %s",
-                        script, game ? "yes" : "no", cover, entering, answer ? "yes" : "no", tasks);
+                TaceLog("[phone] %s%s: free for an ambient task? game %s, in cover %d, getting in a vehicle %d -> %s | %s",
+                        script, check && !IsPhoneScript(script) ? " (phone check)" : "", game ? "yes" : "no", cover,
+                        entering, answer ? "yes" : "no", tasks);
             }
         }
         return answer;
@@ -467,6 +502,25 @@ namespace
         gRunningThread  = reinterpret_cast<RunningThreadFn>(CallTarget(assign.get_first<uint8_t>(33)));
         gScriptName     = reinterpret_cast<ScriptNameFn>(name.get_first<void>(0));
         injector::MakeCALL(site, FreeForAmbientHook, true);
+
+        // NETWORK_HAVE_SUMMONS - registered as push <native> ; push 48726B45h (its hash) ; call <register>.
+        // The native: call <impl> ; mov ecx,[esp+4] ; mov edx,[ecx] ; movzx eax,al ; mov [edx],eax ; ret
+        auto summons = find_pattern("68 ? ? ? ? 68 45 6B 72 48 E8");
+        uint8_t *native = summons.empty() ? nullptr : *summons.get_first<uint8_t *>(1);
+        static const uint8_t tail[] = { 0x8B, 0x4C, 0x24, 0x04, 0x8B, 0x11, 0x0F, 0xB6, 0xC0, 0x89, 0x02, 0xC3 };
+        bool shaped = native != nullptr && native[0] == 0xE8;
+        for (size_t i = 0; shaped && i < sizeof(tail); i++)
+            shaped = native[5 + i] == tail[i];
+        if (shaped)
+        {
+            gSummons = reinterpret_cast<SummonsFn>(CallTarget(native));
+            injector::MakeCALL(native, SummonsHook, true);
+            TaceLog("[phone] OK - story, friend and date calls come through in cover too (their phone check is recognised)");
+        }
+        else
+        {
+            TaceLog("[phone] calls to the player in cover: NETWORK_HAVE_SUMMONS not found - only the phone's own scripts see cover as free");
+        }
         if (gPhoneInCover)
             TaceLog("[phone] OK - the phone stays up in cover");
         if (gPhoneIntoVehicle)
@@ -663,6 +717,7 @@ namespace
     void MoveCallIntoVehicle(uint8_t *ped, void *phone);   // a call that goes on into a vehicle, below
     void KeepPhoneInHand(uint8_t *ped, const void *phone);  // a jacking took the phone, below
     void ParkCallForVehicleAnims(uint8_t *ped, void *phone); // the call pauses for vehicle animations, below
+    void EndStrayTextPose(uint8_t *ped, const void *idleSub); // CellPHONE_text left playing, below
 
     void CheckSideCall(uint8_t *ped)
     {
@@ -686,6 +741,7 @@ namespace
             if (type != lastStep || ducking != lastDucking || cover != lastCover
                 || (now - stepStart < 1500 && now - lastSample >= 150))
             {
+                const bool newStep = type != lastStep;
                 lastStep = type;
                 lastDucking = ducking;
                 lastCover = cover;
@@ -694,10 +750,17 @@ namespace
                 DescribeAnims(ped, anims, sizeof(anims));
                 TaceLog("[phone] call in cover: step %d | ducking %d | cover state %d | z %.2f | anims%s",
                         type, ducking, cover, PedZ(ped), anims);
+                if (newStep)
+                {
+                    char tasks[400];
+                    DescribeTasks(ped, tasks, sizeof(tasks));
+                    TaceLog("[phone] call in cover: step %d | %s", type, tasks);
+                }
             }
         }
         if (phone != nullptr)
         {
+            EndStrayTextPose(ped, nullptr);   // no CellPHONE_text under the call, on foot or in cover
             ParkCallForVehicleAnims(ped, phone);
             if (gParkedCall == nullptr)
             {
@@ -714,15 +777,12 @@ namespace
             TaceLog("[phone] call in cover: the phone task is over");
     }
 
-    void EndIdleTextPose(uint8_t *ped);   // the texting pose in cover, below
-
     bool StartSideCall(uint8_t *ped)
     {
         void *task = gAllocate(*gTaskPool);
         if (task == nullptr)
             return false;
         gPhoneCtor(task, -1);        // untimed, like the script's own
-        EndIdleTextPose(ped);        // a call from the phone held up on foot
         UpperBodyPhoneAnims(true);   // before it starts CellPHONE_in
         gSetSecondary(Field<uint8_t *>(ped, kPedIntelligence) + kIntelPrimary, task, kPhoneSlot);
         if (SidePhone(ped) == nullptr)
@@ -748,7 +808,7 @@ namespace
         {
             if (SidePhone(ped) != nullptr)
                 return 0;   // already on the phone beside cover
-            if ((OnlyInCover(ped) || (gCallsOnFoot && OnFootOnly(ped))) && StartSideCall(ped))
+            if ((OnlyInCover(ped) || ((gCoverInCalls || gVehiclesInCalls) && OnFootOnly(ped))) && StartSideCall(ped))
                 return 0;
             gSideCall = SideCall::None;   // the game's own phone task has command 53 again
             gCallInPrimary = false;
@@ -1140,11 +1200,11 @@ namespace
         if (!picker.empty())
         {
             uint8_t *fn = picker.get_first<uint8_t>(0);
-            uint8_t *sites[8] = {};
-            const int count = CallersOf(fn, sites, 8);
+            uint8_t *sites[kMaxEntrySites] = {};
+            const int count = CallersOf(fn, sites, kMaxEntrySites);
             gPhoneSet  = reinterpret_cast<PhoneSetFn>(fn);
             gIsDucking = reinterpret_cast<IsDuckingFn>(CallTarget(fn + 13));
-            for (int i = 0; i < count && i < 8; i++)
+            for (int i = 0; i < count && i < kMaxEntrySites; i++)
                 injector::MakeCALL(sites[i], PhoneSetHook, true);
             if (count != 6)
                 TaceLog("[phone] calls in cover: the phone set picker has %d callers, expected 6", count);
@@ -1163,8 +1223,9 @@ namespace
             TaceLog("[phone] calls in cover: assignTask not found - a call carried into a vehicle stays beside the driving task");
         TaceLog("[phone] OK - a call taken in cover keeps the player in cover (phone animations on bone mask %u - head, "
                 "neck and right arm - and blend group %u)", kHeadNeckRArm, kPhoneBlendGroup);
-        if (gCallsOnFoot)
-            TaceLog("[phone] OK - during a call on foot he can still take cover or get into a vehicle");
+        if (gCoverInCalls || gVehiclesInCalls)
+            TaceLog("[phone] OK - during a call on foot he can still %s", gCoverInCalls && gVehiclesInCalls
+                    ? "take cover or get into a vehicle" : gCoverInCalls ? "take cover" : "get into a vehicle");
     }
 
     // ---- the texting pose in cover -----------------------------------------
@@ -1263,28 +1324,22 @@ namespace
         gSetSecondary(intel + kIntelPrimary, nullptr, kPhoneSlot);
     }
 
-    // A call started on foot with the phone held up: the idle task's texting pose
-    // (started in blend group 3, before the call moved the phone anims to 4)
-    // would stay on the call's bones. The stock call ends it by outranking the
-    // idle task; here it is blended out, and the call goes to the ear through
-    // Cell_Text_to_Ear as the stock one does.
-    void EndIdleTextPose(uint8_t *ped)
+    // Trace = phone: each cover state change with the phone up - what moving along cover does to it
+    void TraceCoverWithPhone(uint8_t *ped)
     {
-        const uint8_t *intel = Field<uint8_t *>(ped, kPedIntelligence);
-        bool underIdles = false;
-        for (void *t = intel != nullptr ? Field<void *>(intel, kIntelPrimary + 4 * 4) : nullptr; t != nullptr;
-             t = Field<void *>(t, kTaskSubTask))
-        {
-            if (TaskType(t) == kTypePlayerIdles)
-                underIdles = true;
-            else if (underIdles && TaskType(t) == kTypeRunAnim && Field<void *>(t, kTaskSubTask) == nullptr)
-            {
-                const AbortFn abort = (*reinterpret_cast<AbortFn **>(t))[5];
-                if (!abort(t, ped, 1, nullptr))
-                    abort(t, ped, 2, nullptr);
-                return;
-            }
-        }
+        static int last = -2;
+        const int state = CoverState(ped);
+        if (state == last)
+            return;
+        last = state;
+        const uint8_t *point = Field<uint8_t *>(ped, kPedCoverPoint);
+        const int slot   = Field<int>(ped, 0x2C8);
+        const int weapon = slot >= 0 && slot < 16 ? Field<int>(ped, kPedWeapons + 12 * (slot + 5)) : -1;
+        char anims[480];
+        DescribeAnims(ped, anims, sizeof(anims));
+        TaceLog("[phone] cover with the phone up: state %d | ducking %d | cover point %08X | weapon %d (slot %d) | pose %d | anims%s",
+                state, gIsDucking != nullptr ? int(gIsDucking(ped)) : -1, point != nullptr ? Field<uint32_t>(point, 0) : 0,
+                weapon, slot, int(gTextPose), anims);
     }
 
     void TextPoseInCover(uint8_t *ped)
@@ -1297,6 +1352,8 @@ namespace
         void *slot = Field<void *>(intel, kIntelSecondary + 4 * kPhoneSlot);
         const bool ours = slot != nullptr && TaskType(slot) == kTypeRunAnim;
         const bool open = *gPhoneOpen != 0 && *gPhoneOffscreen == 0;
+        if (gTrace && open && OnlyInCover(ped))
+            TraceCoverWithPhone(ped);
 
         if (open && gSideCall != SideCall::Running && OnlyInCover(ped))
         {
@@ -1321,8 +1378,8 @@ namespace
                 gRunAnimCtor(task, kStandingSet, kAnimPhoneText, 4.0f, 0, 1.0f, 0.0f);
                 UpperBodyPhoneAnims(true);   // blend group 4 before it starts
                 gSetSecondary(intel + kIntelPrimary, task, kPhoneSlot);
-                if (gTrace && !gTextPose)
-                    TaceLog("[phone] texting pose in cover: phone held up");
+                if (gTrace)
+                    TaceLog(gTextPose ? "[phone] texting pose in cover: up again" : "[phone] texting pose in cover: phone held up");
                 gTextPose = true;
             }
             if (gTextPose)
@@ -1409,17 +1466,24 @@ namespace
 
     bool __fastcall CoverActionHook(void *task, void *, uint8_t *ped, int request, void *a, void *b, void *c)
     {
-        if (request < 0 || request >= 32 || !(kCoverActionsWithPhone >> request & 1) || !IsPlayer(ped)
-            || !(gTextPose || gSideCall == SideCall::Running || HoldingPhone(ped)))
-            return gCoverAction(task, ped, request, a, b, c);
+        const bool phoneUp = IsPlayer(ped) && (gTextPose || gSideCall == SideCall::Running || HoldingPhone(ped));
+        const bool held    = phoneUp && request >= 0 && request < 32 && (kCoverActionsWithPhone >> request & 1);
+        const bool answer  = held ? false : gCoverAction(task, ped, request, a, b, c);
 
-        static uint32_t logged = 0;
-        if (gTrace && !(logged >> request & 1))
+        if (gTrace && phoneUp && request >= 0 && request < 32)
         {
-            logged |= 1u << request;
-            TaceLog("[phone] cover: action %d held back while the phone is up", request);
+            // Each request's answer as it changes while the phone is up
+            static uint32_t seen = 0, yes = 0;
+            const uint32_t bit = 1u << request;
+            if (!(seen & bit) || ((yes & bit) != 0) != answer)
+            {
+                seen |= bit;
+                yes = answer ? yes | bit : yes & ~bit;
+                TaceLog("[phone] cover with the phone up: request %d -> %s%s | state %d", request, answer ? "yes" : "no",
+                        held ? " (held back)" : "", CoverState(ped));
+            }
         }
-        return false;
+        return answer;
     }
 
     void KeepCoverActionsOffPhone()
@@ -1461,13 +1525,102 @@ namespace
     using IdlesControlFn = void *(__thiscall *)(void *task, uint8_t *ped);
     using IdlesDropFn    = void(__thiscall *)(void *weapons);
     IdlesControlFn gIdlesControl = nullptr;
+    IdlesControlFn gIdlesFirst   = nullptr;   // its createFirstSubTask: ControlMovement(MovePlayer, PlayRandomAmbients)
     IdlesDropFn    gIdlesDrop    = nullptr;
+    constexpr int  kTypeControlMovement = 285;   // CTaskComplexControlMovement
+    constexpr size_t kPedAnimBlender = 0x78;
+    using BlendRateFn = void(__thiscall *)(uint8_t *anim, float rate);
+    BlendRateFn    gBlendRate    = nullptr;   // an anim's blend in / out rate - what RunAnim::makeAbortable blends out with
+
+    // The idle task's texting pose: ControlMovement(MovePlayer, RunAnim CellPHONE_text)
+    bool IsTextPose(const void *sub)
+    {
+        const void *leaf = sub != nullptr && TaskType(sub) == kTypeControlMovement ? Field<void *>(sub, kTaskSubTask) : nullptr;
+        return leaf != nullptr && TaskType(leaf) == kTypeRunAnim;
+    }
+
+    // A call from the phone held up on foot: the texting pose goes, swapped for
+    // the idle task's ordinary subtask the way the idle task swaps it itself (a
+    // stock call's animations are blend group 3 like the pose and blend it out;
+    // a side call's are group 4). Otherwise the idle task keeps what it has.
+    void *SideCallIdleSubTask(uint8_t *task, uint8_t *ped)
+    {
+        void *sub = Field<void *>(task, kTaskSubTask);
+        if (gIdlesFirst == nullptr || !IsTextPose(sub))
+            return sub;
+        const AbortFn abort = (*reinterpret_cast<AbortFn **>(sub))[5];
+        if (!abort(sub, ped, 1, nullptr) && !abort(sub, ped, 2, nullptr))
+            return sub;
+        if (gTrace)
+            TaceLog("[phone] call on foot: the texting pose is swapped for the idle task's own subtask");
+        return gIdlesFirst(task, ped);
+    }
+
+    // Ending the pose task was not enough: CellPHONE_text itself played on at
+    // full weight under the whole call (Trace = phone: "14:3 w1.00" at every
+    // step, the swap above logged at its start), then showed, empty-handed,
+    // after the hang-up until another animation in its blend group replaced it.
+    // With no pose task left to own it - a call on, or the phone closed - it is
+    // blended out the way RunAnim::makeAbortable does it, and again if anything
+    // raises it back. CellPHONE_text = anim 14 on bone mask 10 (only the phone's
+    // anims use it) in blend group 3; the pose in cover is group 4. Under a call
+    // group 4 goes too: the pose in cover ended when the call took its slot, so
+    // one still playing is left over - the idle task's pose had picked up the
+    // cover pose's fading anim after leaving cover - and it took half the arm
+    // from the call's own animations (the phone at his chin). Called by the
+    // call's own per-frame check (CheckSideCall) too, so cover gets it.
+    void EndStrayTextPose(uint8_t *ped, const void *idleSub)
+    {
+        static const uint8_t *faded = nullptr;
+        static float fadedWeight = 0.0f;
+        static int   raised = 0;
+        if (gBlendRate == nullptr || gPhoneOpen == nullptr || gPhoneOffscreen == nullptr || IsTextPose(idleSub)
+            || (gSideCall != SideCall::Running && *gPhoneOpen != 0 && *gPhoneOffscreen == 0))
+            return;   // the idle task's own pose, or the phone open with no call: it belongs
+        const bool call = gSideCall == SideCall::Running;
+        if (call)
+        {
+            const void *phone = SidePhone(ped);
+            const void *step  = phone != nullptr ? Field<void *>(phone, kTaskSubTask) : nullptr;
+            if (step != nullptr && TaskType(step) == kTypeRunAnim)
+                return;   // the phone task's own wait pose while the phone model streams in
+        }
+        const uint8_t *blender = Field<uint8_t *>(ped, kPedAnimBlender);
+        uint8_t *node = blender != nullptr ? Field<uint8_t *>(blender, 0x1A28) : nullptr;
+        for (int n = 0; node != nullptr && n < 64; node = Field<uint8_t *>(node, 0x8C), n++)
+        {
+            uint8_t *anim = node + 4;
+            if (Field<uint16_t>(node, 0x48) != 1 || Field<void *>(anim, 0x40) == nullptr || Field<int>(anim, 0x0C) != kAnimPhoneText
+                || (Field<uint32_t>(anim, 0x04) & kBoneMaskBits) != kHeadNeckRArm)
+                continue;
+            const uint32_t group = Field<uint32_t>(anim, 0x08);
+            if (group != 3 && !(call && group == kPhoneBlendGroup && !gTextPose))
+                continue;   // group 4 outside a call is the pose in cover
+            const float weight = Field<float>(anim, 0x34);
+            const bool  again  = anim == faded && weight > fadedWeight + 0.001f;
+            if (anim == faded && !again)
+            {
+                fadedWeight = weight;   // fading out
+                continue;
+            }
+            if (weight <= 0.0f)
+                continue;
+            gBlendRate(anim, -4.0f);
+            if (gTrace && (!again || raised++ < 10))
+                TaceLog("[phone] CellPHONE_text left playing with no pose task (w%.2f%s) - blended out", weight,
+                        again ? ", raised again" : "");
+            faded = anim;
+            fadedWeight = weight;
+        }
+    }
 
     void *__fastcall IdlesControlHook(uint8_t *task, void *, uint8_t *ped)
     {
-        if (gSideCall == SideCall::Running && IsPlayer(ped))
-            return Field<void *>(task, kTaskSubTask);
-        return gIdlesControl(task, ped);
+        if (!IsPlayer(ped))
+            return gIdlesControl(task, ped);
+        void *sub = gSideCall == SideCall::Running ? SideCallIdleSubTask(task, ped) : gIdlesControl(task, ped);
+        EndStrayTextPose(ped, sub);
+        return sub;
     }
 
     void __fastcall IdlesDropHook(uint8_t *weapons)
@@ -1475,6 +1628,20 @@ namespace
         if (gSideCall == SideCall::Running && IsPlayer(weapons - kPedWeapons))
             return;
         gIdlesDrop(weapons);
+    }
+
+    // While the phone is open, the on-foot player task (1.0.8.0 0xA623F0, one
+    // vtable slot) finds CellPHONE_text on him - its blender's anim 14, any set -
+    // and holds it at full weight while he moves. It stays running in cover and
+    // under a call beside it, where it held a leftover pose against the call's
+    // animations; a stock call's task above the on-foot tree kept it from
+    // running. During a call it finds nothing.
+    using FindAnimFn = uint8_t *(__thiscall *)(void *blender, int anim);
+    FindAnimFn gFindAnim = nullptr;
+
+    uint8_t *__fastcall MovingPhoneAnimHook(void *blender, void *, int anim)
+    {
+        return gSideCall == SideCall::Running ? nullptr : gFindAnim(blender, anim);
     }
 
     void KeepCallsThroughLeavingCover()
@@ -1501,9 +1668,120 @@ namespace
         }
         gIdlesControl = reinterpret_cast<IdlesControlFn>(control.get_first<void>(0));
         gIdlesDrop    = reinterpret_cast<IdlesDropFn>(CallTarget(dropCall));
+        // createNextSubTask and createFirstSubTask, the two slots before - one function (EFLC sub_A04BB0)
+        if (slot[-1] == slot[-2])
+            gIdlesFirst = reinterpret_cast<IdlesControlFn>(uintptr_t(slot[-1]));
+        else
+            TaceLog("[phone] calls from the phone held up: the idle task's first subtask not found - its texting pose may show after the call");
+        // An anim's blend rate: movss xmm1,[esp+4] ; xorps xmm0,xmm0 ; comiss xmm1,xmm0 ; jbe ; ... comiss xmm0,[ecx+58h]
+        auto blendRate = find_pattern("F3 0F 10 4C 24 04 0F 57 C0 0F 2F C8 76 ? F3 0F 10 05 ? ? ? ? 0F 2F 41 58 77");
+        if (!blendRate.empty())
+            gBlendRate = reinterpret_cast<BlendRateFn>(blendRate.get_first<void>(0));
+        else
+            TaceLog("[phone] calls from the phone held up: the anim blend rate not found - CellPHONE_text may stay up after a call");
+        // The moving phone hold: cmp byte [<phone open>],0 ; jz ; cmp byte [<offscreen>],0 ; jnz ;
+        // mov eax,[ebx+0A90h] ; ... mov ecx,[ebx+78h] (the blender) ; push 0Eh (CellPHONE_text) ; ... call <find anim>
+        auto hold = find_pattern("80 3D ? ? ? ? 00 0F 84 ? ? ? ? 80 3D ? ? ? ? 00 0F 85 ? ? ? ? 8B 83 90 0A 00 00 8B 48 04 "
+                                 "8B 50 08 89 4C 24 1C 8B 4B 78 6A 0E 89 54 24 24 E8");
+        if (!hold.empty() && *hold.get_first<uint8_t>(51) == 0xE8)
+        {
+            gFindAnim = reinterpret_cast<FindAnimFn>(CallTarget(hold.get_first<uint8_t>(51)));
+            injector::MakeCALL(hold.get_first<uint8_t>(51), MovingPhoneAnimHook, true);
+        }
+        else
+        {
+            TaceLog("[phone] calls on foot: the moving phone hold not found - it may take half the arm from a call");
+        }
         injector::WriteMemory<uint32_t>(slot, uint32_t(uintptr_t(&IdlesControlHook)), true);
         injector::MakeCALL(dropCall, IdlesDropHook, true);
         TaceLog("[phone] OK - a call from cover goes on the same after leaving cover");
+    }
+
+    // ---- cover or vehicles held back during a call -------------------------
+    //
+    // A call on foot runs beside CTaskComplexPlayerOnFoot when CoverInCalls or
+    // VehiclesInCalls is on, and that task starts both: its cover entry (EFLC
+    // sub_A043E0 - the cover button, 5 callers) and its vehicle entry (EFLC
+    // sub_A04AB0, 2 callers) each return the task to start, or null. For the
+    // one left off, the entry answers null while a call is on - what the stock
+    // call's task above the on-foot tree amounted to. Already in cover or in a
+    // vehicle, nothing changes.
+
+    using CoverEntryFn   = void *(__thiscall *)(void *task, uint8_t *ped, int a, int b, int c);
+    using VehicleEntryFn = void *(__thiscall *)(void *task, int a, void *vehicle, uint8_t *ped);
+    CoverEntryFn   gCoverEntry   = nullptr;
+    VehicleEntryFn gVehicleEntry = nullptr;
+
+    void *__fastcall CoverEntryHook(void *task, void *, uint8_t *ped, int a, int b, int c)
+    {
+        if (gSideCall != SideCall::Running || !IsPlayer(ped) || OnlyInCover(ped))
+            return gCoverEntry(task, ped, a, b, c);
+        static const void *logged = nullptr;
+        if (gTrace && logged != SidePhone(ped))
+        {
+            logged = SidePhone(ped);
+            TaceLog("[phone] call on foot: taking cover is held back until it ends (CoverInCalls = 0)");
+        }
+        return nullptr;
+    }
+
+    void *__fastcall VehicleEntryHook(void *task, void *, int a, void *vehicle, uint8_t *ped)
+    {
+        if (gSideCall != SideCall::Running || !IsPlayer(ped) || (Field<uint8_t>(ped, kPedFlagsInVehicle) & 4) != 0)
+            return gVehicleEntry(task, a, vehicle, ped);
+        static const void *logged = nullptr;
+        if (gTrace && logged != SidePhone(ped))
+        {
+            logged = SidePhone(ped);
+            TaceLog("[phone] call on foot: getting into a vehicle is held back until it ends (VehiclesInCalls = 0)");
+        }
+        return nullptr;
+    }
+
+    void HoldEntriesDuringCalls(bool cover, bool vehicles)
+    {
+        if (cover)
+        {
+            // push ebp ; mov ebp,esp ; and esp,-10h ; sub esp,134h ; push ebx ; push esi ; mov esi,[ebp+8] (ped) ;
+            // push edi ; mov edi,ecx ; mov ecx,esi ; call <the player's pad> ; mov cl,[eax+285Ch]  <- control 28, cover
+            auto entry = find_pattern("55 8B EC 83 E4 F0 81 EC 34 01 00 00 53 56 8B 75 08 57 8B F9 8B CE E8 ? ? ? ? "
+                                      "8A 88 5C 28 00 00 8A 90 5E 28 00 00 05 58 28 00 00");
+            uint8_t *sites[kMaxEntrySites] = {};
+            const int count = entry.empty() ? 0 : CallersOf(entry.get_first<uint8_t>(0), sites, kMaxEntrySites);
+            if (entry.empty())
+                TaceLog("[phone] cover during calls: signature not found, not held back");
+            else if (count < 1 || count > kMaxEntrySites)
+                TaceLog("[phone] ABORTED - the cover entry has %d call sites, expected 1-%d (5 on 1.0.8.0). "
+                        "Cover not held back during calls.", count, kMaxEntrySites);
+            else
+            {
+                gCoverEntry = reinterpret_cast<CoverEntryFn>(entry.get_first<void>(0));
+                for (int i = 0; i < count; i++)
+                    injector::MakeCALL(sites[i], CoverEntryHook, true);
+                TaceLog("[phone] OK - CoverInCalls = 0: no taking cover during a call (%d calls)", count);
+            }
+        }
+        if (vehicles)
+        {
+            // mov eax,[esp+0Ch] (ped) ; mov eax,[eax+0AC0h] ; push esi ; mov esi,[esp+0Ch] (vehicle) ; cmp esi,eax ;
+            // mov ecx,2 ; jnz ; test eax,eax ; jz ; mov edx,[eax+28h] ; and edx,3C0h
+            auto entry = find_pattern("8B 44 24 0C 8B 80 C0 0A 00 00 56 8B 74 24 0C 3B F0 B9 02 00 00 00 75 ? 85 C0 74 ? "
+                                      "8B 50 28 81 E2 C0 03 00 00");
+            uint8_t *sites[kMaxEntrySites] = {};
+            const int count = entry.empty() ? 0 : CallersOf(entry.get_first<uint8_t>(0), sites, kMaxEntrySites);
+            if (entry.empty())
+                TaceLog("[phone] vehicles during calls: signature not found, not held back");
+            else if (count < 1 || count > kMaxEntrySites)
+                TaceLog("[phone] ABORTED - the vehicle entry has %d call sites, expected 1-%d (2 on 1.0.8.0). "
+                        "Vehicles not held back during calls.", count, kMaxEntrySites);
+            else
+            {
+                gVehicleEntry = reinterpret_cast<VehicleEntryFn>(entry.get_first<void>(0));
+                for (int i = 0; i < count; i++)
+                    injector::MakeCALL(sites[i], VehicleEntryHook, true);
+                TaceLog("[phone] OK - VehiclesInCalls = 0: no getting into a vehicle during a call (%d calls)", count);
+            }
+        }
     }
 
     // ---- trace: what takes the player out of cover (Trace = phone) --------
@@ -1663,6 +1941,139 @@ namespace
         TaceLog("[phone] trace armed - every exit from cover is logged with its call chain");
     }
 
+    // ---- trace: what keeps CellPHONE_text on the player (Trace = phone) ----
+    //
+    // After a call from the phone held up, CellPHONE_text (anim 14, blend group 3)
+    // played on at full weight under the whole call - even with the idle task's
+    // pose swapped out - and showed once the call's animations stopped. Its phase
+    // runs on unbroken, so something keeps raising it. Logged with the direct
+    // caller and call chain, once per caller before / during / after a call:
+    // every start of a cellphone-set anim 14 on the player (the anim start RunAnim
+    // uses, 1.0.8.0 0x8E43B0) and every blend change on it (0xA33E80). Both are
+    // detoured - the first 8 / 6 bytes have no relative operands.
+    using AnimStartFn = uint8_t *(__thiscall *)(void *blender, int set, int anim, float blend, int fallback);
+    using AnimBlendFn = void(__thiscall *)(uint8_t *anim, float rate);
+    AnimStartFn gAnimStart = nullptr;   // trampolines
+    AnimBlendFn gAnimBlend = nullptr;
+    int         gAnimLines = 0;
+    constexpr int kAnimLineCap = 150;
+
+    // Once per caller and kind (0 start, 1 blend in, 2 blend out) in each stretch - before, during, after a call
+    bool FirstInStretch(uintptr_t caller, int kind)
+    {
+        static uintptr_t seen[64];
+        static int       count   = 0;
+        static SideCall  stretch = SideCall::None;
+        if (gSideCall != stretch)
+        {
+            stretch = gSideCall;
+            count = 0;
+        }
+        const uintptr_t key = caller | uintptr_t(kind) << 30;
+        for (int i = 0; i < count; i++)
+            if (seen[i] == key)
+                return false;
+        if (count < 64)
+            seen[count++] = key;
+        return true;
+    }
+
+    uint8_t *PlayerPed()
+    {
+        const uint8_t *info = gPlayerByNum != nullptr ? gPlayerByNum(0) : nullptr;
+        return info != nullptr ? Field<uint8_t *>(info, kPlayerPed) : nullptr;
+    }
+
+    bool OnPlayer(const uint8_t *anim)
+    {
+        const uint8_t *ped = PlayerPed();
+        const uint8_t *blender = ped != nullptr ? Field<uint8_t *>(ped, kPedAnimBlender) : nullptr;
+        const uint8_t *node = blender != nullptr ? Field<uint8_t *>(blender, 0x1A28) : nullptr;
+        for (int n = 0; node != nullptr && n < 64; node = Field<uint8_t *>(node, 0x8C), n++)
+            if (node + 4 == anim)
+                return true;
+        return false;
+    }
+
+    uint8_t *__fastcall AnimStartHook(void *blender, void *, int set, int anim, float blend, int fallback)
+    {
+        const uintptr_t caller = uintptr_t(_ReturnAddress());
+        uint8_t *started = gAnimStart(blender, set, anim, blend, fallback);
+        const uint8_t *ped = anim == kAnimPhoneText && (set == 7 || set == 8) ? PlayerPed() : nullptr;
+        if (ped != nullptr && blender == Field<void *>(ped, kPedAnimBlender) && gAnimLines < kAnimLineCap
+            && FirstInStretch(caller, 0))
+        {
+            gAnimLines++;
+            char chain[128];
+            CallChain(chain, sizeof(chain));
+            TaceLog("[phone] CellPHONE_text started on the player from %08X | set %d blend %.1f | side call %d | w%.2f | chain%s",
+                    unsigned(caller - gModule + 0x400000), set, blend, int(gSideCall),
+                    started != nullptr ? Field<float>(started, 0x34) : -1.0f, chain);
+        }
+        return started;
+    }
+
+    void __fastcall AnimBlendHook(uint8_t *anim, void *, float rate)
+    {
+        const uintptr_t caller = uintptr_t(_ReturnAddress());
+        if (Field<int>(anim, 0x0C) == kAnimPhoneText && (Field<uint32_t>(anim, 0x08) == 3 || Field<uint32_t>(anim, 0x08) == 4)
+            && gAnimLines < kAnimLineCap && OnPlayer(anim) && FirstInStretch(caller, rate > 0.0f ? 1 : 2))
+        {
+            gAnimLines++;
+            char chain[128];
+            CallChain(chain, sizeof(chain));
+            TaceLog("[phone] CellPHONE_text blend on the player -> %.1f from %08X | group %u w%.2f | side call %d | chain%s", rate,
+                    unsigned(caller - gModule + 0x400000), Field<uint32_t>(anim, 0x08), Field<float>(anim, 0x34),
+                    int(gSideCall), chain);
+        }
+        gAnimBlend(anim, rate);
+    }
+
+    // fn's first len bytes (no relative operands) in executable memory, then a jmp back past them
+    uint8_t *Trampoline(uint8_t *fn, int len)
+    {
+        auto *tramp = static_cast<uint8_t *>(VirtualAlloc(nullptr, 32, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE));
+        if (tramp == nullptr)
+            return nullptr;
+        for (int i = 0; i < len; i++)
+            tramp[i] = fn[i];
+        tramp[len] = 0xE9;
+        *reinterpret_cast<int32_t *>(tramp + len + 1) = int32_t((fn + len) - (tramp + len + 5));
+        return tramp;
+    }
+
+    void TraceAnimStarts()
+    {
+        // sub esp,0Ch ; push ebx ; mov ebx,[esp+18h] ; ... mov ebp,ecx (the blender) ; call <find the anim>
+        auto start = find_pattern("83 EC 0C 53 8B 5C 24 18 55 56 57 8B 7C 24 20 53 57 8B E9 E8 ? ? ? ? 8B F0 83 C4 08 85 F6 75 ? "
+                                  "8B 7C 24 2C 83 FF FF");
+        // movss xmm1,[esp+4] (rate) ; xorps xmm0,xmm0 ; comiss xmm1,xmm0 ; jbe ; movss xmm0,[..] ; comiss xmm0,[ecx+58h]
+        auto blend = find_pattern("F3 0F 10 4C 24 04 0F 57 C0 0F 2F C8 76 ? F3 0F 10 05 ? ? ? ? 0F 2F 41 58 77");
+        if (start.empty() || blend.empty() || gPlayerByNum == nullptr)
+        {
+            TaceLog("[phone] CellPHONE_text trace: signature not found, not armed");
+            return;
+        }
+        if (gTextBegin == 0)
+        {
+            gModule = uintptr_t(GetModuleHandleA(nullptr));
+            ForEachExecSection([](uint8_t *begin, size_t size) {
+                if (gTextBegin == 0)
+                {
+                    gTextBegin = uintptr_t(begin);
+                    gTextEnd   = gTextBegin + size;
+                }
+            });
+        }
+        gAnimStart = reinterpret_cast<AnimStartFn>(Trampoline(start.get_first<uint8_t>(0), 8));
+        gAnimBlend = reinterpret_cast<AnimBlendFn>(Trampoline(blend.get_first<uint8_t>(0), 6));
+        if (gAnimStart == nullptr || gAnimBlend == nullptr)
+            return;
+        injector::MakeJMP(start.get_first<void>(0), AnimStartHook, true);
+        injector::MakeJMP(blend.get_first<void>(0), AnimBlendHook, true);
+        TaceLog("[phone] trace armed - CellPHONE_text starts and blend changes on the player are logged (first %d)", kAnimLineCap);
+    }
+
     // ---- trace: the player's speed around a phone call (Trace = phone) -----
 
     using RequestedSpeedFn = float(__thiscall *)(void *ped, int a2, int a3);
@@ -1719,10 +2130,12 @@ void Phone_Init()
     const bool run = TaceIniBool("PHONE", "RunWithPhone", true);
     gPhoneInCover     = TaceIniBool("PHONE", "PhoneInCover", true);
     gPhoneIntoVehicle = TaceIniBool("PHONE", "PhoneIntoVehicle", true);
-    gCallsOnFoot      = TaceIniBool("PHONE", "CoverAndVehiclesInCalls", true);
+    const bool both   = TaceIniBool("PHONE", "CoverAndVehiclesInCalls", true);   // the one key they were before
+    gCoverInCalls     = TaceIniBool("PHONE", "CoverInCalls", both);
+    gVehiclesInCalls  = TaceIniBool("PHONE", "VehiclesInCalls", both);
     gTrace = TaceTraceEnabled("phone");
-    if (gCallsOnFoot && !gPhoneInCover)
-        TaceLog("[phone] CoverAndVehiclesInCalls needs PhoneInCover = 1 - a call still blocks cover and vehicles");
+    if ((gCoverInCalls || gVehiclesInCalls) && !gPhoneInCover)
+        TaceLog("[phone] CoverInCalls and VehiclesInCalls need PhoneInCover = 1 - a call still blocks cover and vehicles");
     if (!run)
         TaceLog("[phone] RunWithPhone = 0 - walking with the phone out, as vanilla");
     if (!gPhoneInCover)
@@ -1782,7 +2195,11 @@ void Phone_Init()
         KeepCoverActionsOffPhone();
         KeepCallsThroughLeavingCover();
         KeepCoverPointGuard();
+        HoldEntriesDuringCalls(!gCoverInCalls, !gVehiclesInCalls);
     }
     if (gTrace)
+    {
         TraceLeavingCover();
+        TraceAnimStarts();
+    }
 }

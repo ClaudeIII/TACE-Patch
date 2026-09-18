@@ -989,6 +989,7 @@ namespace
     //   sprites   [reg*4+table] 13, [reg*4+table+4] 1 and [reg*4+table-4] 1 - the
     //             objective arrows read the neighbours of ids 1 and 4 - and
     //             table+0x130 x3, sprite 76 read directly
+    //   font      1, biased 1000 entries below the table - see kFontTokenBase
     // The dword just below the table is an unrelated float that 4 other
     // instructions use, so below the table only the scaled-index form moves.
     void AdjustBlipSprites()
@@ -1048,6 +1049,24 @@ namespace
             spriteOffsets.push_back(off);
         }
 
+        // The text renderer reads the same table through a base biased 1000
+        // entries BELOW it, so the scan above can never see it.
+        // CFont::GetTokenType turns "~BLIP_27~" into token type 1000 + 27, and
+        // the glyph draw indexes the sprites with that type directly:
+        //     mov ecx,[esi*4 + <table - 4000>] ; test ecx,ecx ; jz <draw nothing>
+        // Left behind, it reads the old table - which nothing fills once the
+        // loader has moved - so every ~BLIP_n~ icon in help text, subtitles and
+        // menus silently renders as a gap. Exactly one instruction in the image
+        // uses this base; the tables 152 and 78 entries below (HUD colours) are
+        // real separate arrays and must NOT be dragged along, which is why this
+        // matches one exact address rather than any negative bias.
+        constexpr size_t kFontTokenBase = 1000;
+        const uintptr_t fontBase = sprites - 4 * kFontTokenBase;
+        std::vector<uint8_t *> fontRefs;
+        for (const CodeRef &r : CodeRefsInRange(uint32_t(fontBase), uint32_t(fontBase + 1)))
+            if ((r.at[-2] & 0xC7) == 0x04 && (r.at[-1] & 0xC7) == 0x85)
+                fontRefs.push_back(r.at);
+
         std::vector<uint8_t *> nameStart, nameEnd;
         size_t nameStrays = 0;
         for (const CodeRef &r : CodeRefsInRange(uint32_t(names), uint32_t(namesEnd + 1)))
@@ -1065,6 +1084,7 @@ namespace
                 { "table+4 refs",      atPlus4,           1 },
                 { "table-4 refs",      atMinus4,          1 },
                 { "sprite 76 reads",   direct,            3 },
+                { "font token refs",   fontRefs.size(),   1 },
                 { "other table refs",  strays,            0 },
                 { "name table start",  nameStart.size(),  1 },
                 { "name table end",    nameEnd.size(),    1 },
@@ -1095,9 +1115,11 @@ namespace
             injector::WriteMemory<uint32_t>(at, uint32_t(uintptr_t(newNames)), true);
         for (uint8_t *at : nameEnd)
             injector::WriteMemory<uint32_t>(at, uint32_t(uintptr_t(newNames + total)), true);
+        for (uint8_t *at : fontRefs)
+            injector::WriteMemory<uint32_t>(at, uint32_t(uintptr_t(newSprites) - 4 * kFontTokenBase), true);
 
         TaceLog("[limits] blipsprites: OK - %zu refs moved, 129 -> %zu sprites",
-                spriteRefs.size() + nameStart.size() + nameEnd.size(), total);
+                spriteRefs.size() + nameStart.size() + nameEnd.size() + fontRefs.size(), total);
         for (size_t i = 0; i < extra.size(); i++)
             TaceLog("[limits] blipsprites:   %zu = %s", kStock + i, extra[i].c_str());
     }
