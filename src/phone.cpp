@@ -74,6 +74,7 @@ namespace
     constexpr size_t kDisableSprint   = 0x414;   // m_bDisablePlayerSprint
 
     bool gTrace = false;
+    bool gPedsInCalls = false;   // extend the movement fixes to NPCs on the phone
 
     template<typename T>
     T Field(const void *base, size_t offset)
@@ -92,6 +93,18 @@ namespace
         return (*reinterpret_cast<GetTypeFn *const *>(task))[3](task);   // vtable +0x0C
     }
 
+    bool HasPhoneTask(uint8_t *ped);
+
+    // Who the two movement fixes below apply to. The player always; NPCs only with
+    // PedsInCalls = 1, and only while the phone task is actually on them, so nothing
+    // else that runs a standstill or a DoNothing is touched.
+    bool MovementFixApplies(uint8_t *ped)
+    {
+        if (IsPlayer(ped))
+            return true;
+        return gPedsInCalls && HasPhoneTask(ped);
+    }
+
     // ---- the call-start standstill -----------------------------------------
 
     using StandStillFn = bool(__thiscall *)(void *task, void *ped);
@@ -99,11 +112,12 @@ namespace
 
     bool __fastcall StandStillHook(void *task, void *, uint8_t *ped)
     {
-        if (IsPlayer(ped))
+        if (MovementFixApplies(ped))
         {
             if (gTrace)
-                TaceLog("[phone] call start: the player's standstill passed over");
-            return false;   // the player keeps moving into the call
+                TaceLog("[phone] call start: the %s standstill passed over",
+                        IsPlayer(ped) ? "player's" : "ped's");
+            return false;   // they keep moving into the call
         }
         return gStandStill(task, ped);
     }
@@ -156,7 +170,9 @@ namespace
     // (its timer, its return value) is untouched.
     bool __fastcall DoNothingProcessHook(void *task, void *, uint8_t *ped)
     {
-        if (!IsPlayer(ped) || !HasPhoneTask(ped))
+        // HasPhoneTask is required here for everyone, the player included - this
+        // process runs for any DoNothing, not just the phone's.
+        if (!MovementFixApplies(ped) || !HasPhoneTask(ped))
             return gDoNothingProcess(task, ped);
 
         uint32_t &flags5 = *reinterpret_cast<uint32_t *>(ped + kPedFlags5);
@@ -166,7 +182,8 @@ namespace
         flags5 = (flags5 & ~0x400u) | had;
 
         if (gTrace)
-            TaceLog("[phone] call start: the phone's stand-in move task kept the player's movement");
+            TaceLog("[phone] call start: the phone's stand-in move task kept the %s movement",
+                    IsPlayer(ped) ? "player's" : "ped's");
         return done;
     }
 
@@ -671,14 +688,53 @@ namespace
     constexpr uint32_t kBoneMaskBits = 0xF;
     constexpr uint32_t kHeadNeckRArm = 10;
 
+    // < 0 leaves the phone animations in their stock blend group.
+    //
+    // Group 4 is where CPed::ProcessGestureHashKey blends every speech gesture
+    // (CAnimBlender::BlendAnimation(.., .., flags, 4, ..) at 1.0.8.0 0x944300).
+    // Moving the phone animations into it puts them in the same group, so a
+    // gesture evicts the at-ear animation, the chat step's CTaskSimpleRunAnim
+    // ends with it, createNextSubTask (PhoneNextHook) starts the step again -
+    // and that restart is the visible bounce on every line of dialogue.
+    // Stock is untouched by this and does not collide.
+    int gPhoneBlendGroupCfg = int(kPhoneBlendGroup);
+
+    // The other half of the same collision, approached from the gesture's side.
+    //
+    // The phone animations belong in group 4: that is what puts them above cover's
+    // poses (2 and 3), and moving them anywhere else breaks cover, or - in a group
+    // of their own - leaves nothing to fade them out, so stale ones stack and the
+    // hand spasms. So the phone stays put and the GESTURE moves instead.
+    //
+    // CPed::ProcessGestureHashKey blends every gesture with a literal `push 4`
+    // (1.0.8.0 0x9445C4). Flipping that one immediate byte while a call is running
+    // takes gestures out of the phone's group for the duration and puts them back
+    // afterwards. Gestures still share a group with each other, so they still
+    // replace each other properly - which is what group 5 got wrong for the phone.
+    uint8_t *gGestureGroupByte  = nullptr;
+    uint8_t  gGestureGroupStock = 4;
+    int      gGestureGroupCfg   = 4;   // == stock means leave it alone
+
     void UpperBodyPhoneAnims(bool on)
     {
+        if (gGestureGroupByte != nullptr && gGestureGroupCfg != int(gGestureGroupStock))
+        {
+            const uint8_t group = on ? uint8_t(gGestureGroupCfg) : gGestureGroupStock;
+            injector::WriteMemory<uint8_t>(gGestureGroupByte, group, true);
+            if (gTrace)
+                TaceLog("[phone] speech gestures blend in group %u (stock %u)", group, gGestureGroupStock);
+        }
         for (int i = 0; i < gPhoneAnims; i++)
         {
             injector::WriteMemory<uint32_t>(gPhoneAnimFlags[i],
                                             on ? (gPhoneAnimStock[i] & ~kBoneMaskBits) | kHeadNeckRArm : gPhoneAnimStock[i],
                                             true);
-            injector::WriteMemory<uint32_t>(gPhoneAnimBlend[i], on ? kPhoneBlendGroup : gPhoneAnimBlendStock[i], true);
+            const uint32_t group = on && gPhoneBlendGroupCfg >= 0
+                                       ? uint32_t(gPhoneBlendGroupCfg) : gPhoneAnimBlendStock[i];
+            injector::WriteMemory<uint32_t>(gPhoneAnimBlend[i], group, true);
+            if (gTrace && on)
+                TaceLog("[phone] anim %d: bone mask %u, blend group %u (stock %u)",
+                        i, kHeadNeckRArm, group, gPhoneAnimBlendStock[i]);
         }
     }
 
@@ -2123,6 +2179,87 @@ namespace
         }
         return speed;
     }
+
+    // ---- let the gesture system see the call -------------------------------
+    //
+    // CPed::ProcessGestureHashKey picks a speech gesture, then blends it into
+    // group 4. Which gesture depends on CTaskInfoManager::isTaskActive(1600):
+    // with the phone task active it takes the narrow variant (flags 0x87FC3,
+    // bone mask 3) that leaves the right arm free for the phone; without it,
+    // the full two-armed one (0x87FC8, mask 8) that swamps the phone entirely.
+    //
+    // A side call lives in a SECONDARY task slot, so that check says no and the
+    // player gestures with both arms while the phone sits at his side. Only the
+    // one call site inside ProcessGestureHashKey is patched - isTaskActive has
+    // 40-odd other callers (HUD, crosshairs, netcode) that must not be touched.
+    using IsTaskActiveFn = char(__thiscall *)(void *mgr, int type, char flag);
+    IsTaskActiveFn gIsTaskActive = nullptr;
+    constexpr size_t kIntelTaskInfoMgr = 736;
+
+    char __fastcall GestureSeesPhoneHook(void *mgr, void *, int type, char flag)
+    {
+        if (gSideCall == SideCall::Running && type == kTypeUsePhone)
+        {
+            uint8_t *ped = PlayerPed();
+            if (ped != nullptr && SidePhone(ped) != nullptr)
+            {
+                uint8_t *intel = Field<uint8_t *>(ped, kPedIntelligence);
+                if (intel != nullptr && mgr == intel + kIntelTaskInfoMgr)
+                    return 1;   // the gesture picks the phone variant
+            }
+        }
+        return gIsTaskActive(mgr, type, flag);
+    }
+
+    void FindGestureBlendGroup()
+    {
+        if (gGestureGroupCfg == 4)
+            return;   // stock, nothing to move
+        // fld <rate> ; push ecx (scratch) ; fstp [esp] ; push 4 <- the group ;
+        // push eax ; push ebp ; push ebx ; call <BlendAnimation> ; mov esi,eax ; test esi,esi
+        auto pattern = find_pattern("D9 05 ? ? ? ? 51 D9 1C 24 6A 04 50 55 53 E8 ? ? ? ? 8B F0 85 F6");
+        if (pattern.empty())
+        {
+            TaceLog("[phone] gesture blend group: signature not found, not patched");
+            return;
+        }
+        gGestureGroupByte  = pattern.get_first<uint8_t>(11);
+        gGestureGroupStock = *gGestureGroupByte;
+        if (gGestureGroupStock != 4)
+        {
+            TaceLog("[phone] ABORTED - the gesture blend group reads %u, expected 4. Not patched.",
+                    gGestureGroupStock);
+            gGestureGroupByte = nullptr;
+            return;
+        }
+        TaceLog("[phone] OK - speech gestures move to blend group %d during a call, clear of the phone",
+                gGestureGroupCfg);
+    }
+
+    bool gGestureKnowsPhone = false;
+
+    void ShowTheCallToGestures()
+    {
+        if (!gGestureKnowsPhone)
+            return;
+        // push 0 ; push 640h ; mov ecx,edi ; call <isTaskActive> ; test al,al ;
+        // jnz <phone variant> ; push 0 ; push 0DDh   <- the 1600 check, and only it
+        auto pattern = find_pattern("6A 00 68 40 06 00 00 8B CF E8 ? ? ? ? 84 C0 0F 85 ? ? ? ? 6A 00 68 DD 00 00 00");
+        if (pattern.empty())
+        {
+            TaceLog("[phone] gesture phone check: signature not found, not patched");
+            return;
+        }
+        uint8_t *call = pattern.get_first<uint8_t>(9);
+        if (*call != 0xE8)
+        {
+            TaceLog("[phone] ABORTED - the gesture's phone check is not a call here. Not patched.");
+            return;
+        }
+        gIsTaskActive = reinterpret_cast<IsTaskActiveFn>(call + 5 + *reinterpret_cast<int32_t *>(call + 1));
+        injector::MakeCALL(call, GestureSeesPhoneHook, true);
+        TaceLog("[phone] OK - speech gestures know about a call in cover (the phone stays at his ear)");
+    }
 }
 
 void Phone_Init()
@@ -2133,7 +2270,16 @@ void Phone_Init()
     const bool both   = TaceIniBool("PHONE", "CoverAndVehiclesInCalls", true);   // the one key they were before
     gCoverInCalls     = TaceIniBool("PHONE", "CoverInCalls", both);
     gVehiclesInCalls  = TaceIniBool("PHONE", "VehiclesInCalls", both);
+    gPedsInCalls      = TaceIniBool("PHONE", "PedsInCalls", false);
+    gPhoneBlendGroupCfg = TaceIniInt("PHONE", "PhoneBlendGroup", int(kPhoneBlendGroup));
+    gGestureKnowsPhone  = TaceIniBool("PHONE", "GestureKnowsPhone", true);
+    gGestureGroupCfg    = TaceIniInt("PHONE", "GestureBlendGroup", 6);
     gTrace = TaceTraceEnabled("phone");
+    if (gPhoneBlendGroupCfg < 0)
+        TaceLog("[phone] PhoneBlendGroup = -1 - phone animations stay in their stock blend group, "
+                "clear of the speech gestures in group %u", kPhoneBlendGroup);
+    if (gPedsInCalls)
+        TaceLog("[phone] PedsInCalls = 1 - NPCs keep moving through calls too");
     if ((gCoverInCalls || gVehiclesInCalls) && !gPhoneInCover)
         TaceLog("[phone] CoverInCalls and VehiclesInCalls need PhoneInCover = 1 - a call still blocks cover and vehicles");
     if (!run)
@@ -2142,7 +2288,7 @@ void Phone_Init()
         TaceLog("[phone] PhoneInCover = 0 - cover puts the phone away, as vanilla");
     if (!gPhoneIntoVehicle)
         TaceLog("[phone] PhoneIntoVehicle = 0 - getting into a vehicle closes the phone, as vanilla");
-    if (!run && !gTrace && !gPhoneInCover && !gPhoneIntoVehicle)
+    if (!run && !gTrace && !gPhoneInCover && !gPhoneIntoVehicle && !gPedsInCalls)
         return;
 
     // mov eax,[edx+12Ch] ; mov ecx,esi ; call eax      <- the ped's phone model
@@ -2179,7 +2325,8 @@ void Phone_Init()
         }
     }
 
-    if (run)
+    // PedsInCalls rides the same two hooks, so they go in for either.
+    if (run || gPedsInCalls)
     {
         KeepMovingIntoCalls();
         KeepMovementThroughPhoneTask();
@@ -2189,6 +2336,8 @@ void Phone_Init()
         KeepPhoneInCover();
     if (gPhoneInCover)
     {
+        FindGestureBlendGroup();
+        ShowTheCallToGestures();
         KeepCoverOnPhoneKey();
         KeepCallsInCover();
         KeepTextPoseInCover();
