@@ -11,6 +11,7 @@
 #include <Hooking.Patterns.h>
 
 #include "Config.h"
+#include "Game.h"
 #include "LimitAdjuster.h"
 #include "Log.h"
 #include "Patterns.h"
@@ -24,11 +25,9 @@
 // handled: when CE differs, ADD its signature as another argument rather than
 // replacing the existing one.
 //
-// Nothing here writes to an instruction's address operand. The previous version
-// of this file did - it took `get_first<void>(n)`, which is a POINTER TO the
-// operand bytes, and wrote the new limit over it, turning e.g.
-// `MOV ECX,[0x00C0FFEE]` into `MOV ECX,[0x000001C2]`. That is what crashed. To
-// read the array's address you must dereference: `*get_first<uintptr_t>(n)`.
+// To read an array's address from an instruction, dereference the operand:
+// `*get_first<uintptr_t>(n)`. `get_first<void>(n)` is a pointer TO the operand
+// bytes, and writing a limit there corrupts the instruction.
 // ============================================================================
 
 namespace
@@ -41,9 +40,9 @@ namespace
     // present at all. The file only exists so those values can be pushed further
     // (or backed off) without a rebuild.
     //
-    // The uncalibrated sections default to OFF. Their signatures are FusionFix's
-    // and do not resolve correctly on this build yet - they abort safely rather
-    // than half-patching, but there is no reason to run them until they're fixed.
+    // Handling, carcols, vehicle offsets and WeaponInfo default to OFF: TACE
+    // fits in their stock sizes. Every signature and xref count in them is
+    // checked against 1.0.8.0, and any mismatch aborts that section unpatched.
     // ------------------------------------------------------------------------
     struct Config
     {
@@ -51,65 +50,28 @@ namespace
         int  carGenerators   = 4096;   // stock 1100, map and script together
         int  scriptCarGenerators = 128; // stock 25 - the first N of carGenerators
         std::vector<std::string> blipSprites;   // [BLIPSPRITES], ids 129 onwards
-        bool enableHandling  = false;  // uncalibrated: 25 of 26 xrefs resolve
+        bool enableHandling  = false;
         int  handlingScale   = 2;
-        bool enableCarcols   = false;  // uncalibrated: wrong operand offset for this build
-        bool enableVehOffs   = false;  // uncalibrated: signature matches the wrong site
-        bool enableWeaponInfo = false; // verified to resolve on this build; off until tested in game
+        bool enableCarcols   = false;
+        bool enableVehOffs   = false;
+        bool enableWeaponInfo = false;
         bool verboseXrefs    = true;   // per-offset xref counts in the log
     };
 
     Config gConfig;
 
-    // TacePatch.ini beside the .asi. Deliberately uses the Win32 profile API
-    // rather than deps/IniReader - that header needs std::string::starts_with,
-    // which is C++20, and this project builds as C++17.
-    std::string IniPath()
-    {
-        char buf[MAX_PATH]{};
-        HMODULE hm = nullptr;
-        GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                           reinterpret_cast<LPCSTR>(&IniPath), &hm);
-        GetModuleFileNameA(hm, buf, MAX_PATH);
-        std::string p = buf;
-        const size_t dot = p.find_last_of('.');
-        if (dot != std::string::npos)
-            p = p.substr(0, dot);
-        return p + ".ini";
-    }
-
     void LoadConfig()
     {
-        const std::string ini = IniPath();
-
-        // Reads the value itself rather than using GetPrivateProfileInt, so the
-        // trailing "// ..." comments in the ini (FusionFix's layout) are safely
-        // ignored: strtol stops at the first character that isn't part of the
-        // number, and anything unparseable falls back to the default.
-        auto readInt = [&](const char *sec, const char *key, int def)
-        {
-            char buf[64]{};
-            if (GetPrivateProfileStringA(sec, key, "", buf, sizeof(buf), ini.c_str()) == 0)
-                return def;
-            char *end = nullptr;
-            const long v = strtol(buf, &end, 10);
-            return (end == buf) ? def : static_cast<int>(v);
-        };
-        auto readBool = [&](const char *sec, const char *key, bool def)
-        {
-            return readInt(sec, key, def ? 1 : 0) != 0;
-        };
-
-        gConfig.animWadBlocks  = readInt("LIMITS", "AnimWadBlocks", gConfig.animWadBlocks);
-        gConfig.carGenerators  = readInt("LIMITS", "CarGenerators", gConfig.carGenerators);
-        gConfig.scriptCarGenerators = readInt("LIMITS", "ScriptCarGenerators", gConfig.scriptCarGenerators);
+        gConfig.animWadBlocks  = TaceIniInt("LIMITS", "AnimWadBlocks", gConfig.animWadBlocks);
+        gConfig.carGenerators  = TaceIniInt("LIMITS", "CarGenerators", gConfig.carGenerators);
+        gConfig.scriptCarGenerators = TaceIniInt("LIMITS", "ScriptCarGenerators", gConfig.scriptCarGenerators);
         gConfig.scriptCarGenerators = (std::max)(25, (std::min)(gConfig.scriptCarGenerators, 65535));
-        gConfig.enableHandling = readBool("LIMITS", "Handling", gConfig.enableHandling);
-        gConfig.handlingScale  = readInt("LIMITS", "HandlingScale", gConfig.handlingScale);
-        gConfig.enableCarcols  = readBool("LIMITS", "Carcols", gConfig.enableCarcols);
-        gConfig.enableVehOffs  = readBool("LIMITS", "VehicleOffsets", gConfig.enableVehOffs);
-        gConfig.enableWeaponInfo = readBool("LIMITS", "WeaponInfo", gConfig.enableWeaponInfo);
-        gConfig.verboseXrefs   = TaceTraceEnabled("limits") || readBool("DEBUG", "VerboseXrefs", gConfig.verboseXrefs);
+        gConfig.enableHandling = TaceIniBool("LIMITS", "Handling", gConfig.enableHandling);
+        gConfig.handlingScale  = TaceIniInt("LIMITS", "HandlingScale", gConfig.handlingScale);
+        gConfig.enableCarcols  = TaceIniBool("LIMITS", "Carcols", gConfig.enableCarcols);
+        gConfig.enableVehOffs  = TaceIniBool("LIMITS", "VehicleOffsets", gConfig.enableVehOffs);
+        gConfig.enableWeaponInfo = TaceIniBool("LIMITS", "WeaponInfo", gConfig.enableWeaponInfo);
+        gConfig.verboseXrefs   = TaceTraceEnabled("limits") || TaceIniBool("DEBUG", "VerboseXrefs", gConfig.verboseXrefs);
 
         // Refuse nonsense rather than letting it reach a memory write.
         if (gConfig.animWadBlocks < 1500)
@@ -255,12 +217,14 @@ namespace
         // reach into the bike area). So if the standard move fails, the region
         // has NOT grown and raising any of the parser's counts below would make
         // it write past the end of a 160-entry array. All of it hangs together.
-        auto standard = LimitAdjuster(aHandlingLines, 0x110, ms_iStandardLines, 26)
+        // 25 xrefs on 1.0.8.0: 6 / 4 / 5 / 3 / 5 / 2 (FusionFix 76c4cea dropped a
+        // 0x5F60 offset that nothing references).
+        auto standard = LimitAdjuster(aHandlingLines, 0x110, ms_iStandardLines, 25)
             .Named("handling.standard")
             .Verbose(gConfig.verboseXrefs)
             .IncreaseBy(increaseby)
             .InsertNewArrayPointer(handling.data())
-            .ReplaceXrefs(0x0, 0xF8, 0xFC, 0x100, 0x5F60, 0xAA00, 0xAAFC);
+            .ReplaceXrefs(0x0, 0xF8, 0xFC, 0x100, 0xAA00, 0xAAFC);
 
         if (!standard.Succeeded())
         {
@@ -307,51 +271,68 @@ namespace
         if (Found(p, "handling.boatCount"))
             injector::WriteMemory(p.get_first(1), int(ms_iBoatLinesLimit - 1), true);
 
-        // Bounds checks that would otherwise reject the raised counts.
-        p = find_pattern("7D 1B 8B C2", "7D 19 56 8B F2");
+        // Bounds checks that would otherwise reject the raised counts (the jge).
+        p = find_pattern("83 FA 28 7D ? 8B C2 C1 E0 ? 05", "83 FA 28 7D ? 56 8B F2 C1 E6");
         if (Found(p, "handling.bikeBound"))
-            injector::MakeNOP(p.get_first(), 2);
+            injector::MakeNOP(p.get_first(3), 2);
 
-        p = find_pattern("7D 1C 8D 04 52", "7D 1A 56 8D 34 49");
+        p = find_pattern("7D ? 8D 04 52 C1 E0 ? 05", "7D ? 56 8D 34 49 C1 E6");
         if (Found(p, "handling.flyingBound"))
             injector::MakeNOP(p.get_first(), 2);
 
-        p = find_pattern("7D 1E 8B C2", "7D 1C 56 8B F2");
+        p = find_pattern("7D ? 8B C2 69 C0 ? ? ? ? 05 ? ? ? ? 89 86", "7D ? 56 8B F2 69 F6");
         if (Found(p, "handling.boatBound"))
             injector::MakeNOP(p.get_first(), 2);
     }
 
+    // Car colours: 196 -> 392, plus the two police scanner tables indexed by
+    // colour. Two signatures have two spellings with the operand at a
+    // different offset in each, so those are tried one at a time rather than
+    // through find_pattern. 1.0.8.0 has the second spellings, and 20 references
+    // to the colour array (FusionFix's other build has 23); the two globals just
+    // past it belong to CVehicleModelInfo::setVehicleDrawable and stay put.
     void AdjustCarcols()
     {
-        auto p = find_pattern("8B 87 ? ? ? ? 25 ? ? ? ? 0B C8 89 8F",
-                              "8B 94 36 ? ? ? ? 03 F6 33 C0 8A A4 24 ? ? ? ? 81 E2 ? ? ? ? C1 E1 10 0B CA");
-        auto r1 = find_pattern("81 3D ? ? ? ? ? ? ? ? 0F 8D ? ? ? ? 8D 84 24",
-                               "81 3D ? ? ? ? ? ? ? ? 0F 8D ? ? ? ? 8D 8C 24 ? ? ? ? 51 8D 94 24 ? ? ? ? 52 8D 84 24 ? ? ? ? 50");
-        auto r2 = find_pattern("81 FA ? ? ? ? 0F 8D ? ? ? ? 42",
-                               "81 3D ? ? ? ? ? ? ? ? 0F 8D ? ? ? ? 83 05 ? ? ? ? ? E9 ? ? ? ? 83 FD 02");
+        uintptr_t colors = 0;
+        size_t xrefs = 0;
+        if (hook::pattern a("8B 87 ? ? ? ? 25 ? ? ? ? 0B C8 89 8F"); !a.empty())
+            colors = *a.get_first<uintptr_t>(2), xrefs = 23;
+        else if (hook::pattern b("8B 94 36 ? ? ? ? 03 F6 33 C0"); !b.empty())
+            colors = *b.get_first<uintptr_t>(3), xrefs = 20;
 
-        if (!Found(p, "carcols.colors") || !Found(r1, "carcols.ref1") || !Found(r2, "carcols.ref2"))
+        intptr_t ref2 = 0;
+        if (hook::pattern a("81 FA ? ? ? ? 0F 8D ? ? ? ? 42"); !a.empty())
+            ref2 = intptr_t(a.get_first(2));
+        else if (hook::pattern b("81 3D ? ? ? ? ? ? ? ? 0F 8D ? ? ? ? 83 05"); !b.empty())
+            ref2 = intptr_t(b.get_first(6));
+
+        auto r1 = find_pattern("81 3D ? ? ? ? ? ? ? ? 0F 8D ? ? ? ? 8D 84 24",
+                               "81 3D ? ? ? ? ? ? ? ? 0F 8D ? ? ? ? 8D 8C 24");
+        if (colors == 0 || ref2 == 0 || !Found(r1, "carcols.ref1"))
+        {
+            TaceLog("[limits] carcols: no signature matched, section skipped");
             return;
+        }
 
         // The scanner tables below are indexed by colour id, so growing them is
         // pointless - and needless risk - unless the main colour array grew too.
-        if (!LimitAdjuster(*p.get_first<uintptr_t>(2), 4, 196, 23)
+        if (!LimitAdjuster(colors, 4, 196, xrefs)
                  .Named("carcols.colors")
-            .Verbose(gConfig.verboseXrefs)
+                 .Verbose(gConfig.verboseXrefs)
                  .ReplaceXrefs(0)
-                 .ReplaceNumericRefs((intptr_t)r1.get_first(6), (intptr_t)r2.get_first(2))
+                 .ReplaceNumericRefs(intptr_t(r1.get_first(6)), ref2)
                  .Succeeded())
         {
             TaceLog("[limits] carcols: colour array did not move - skipping scanner tables");
             return;
         }
 
-        p = find_pattern("8B 04 8D ? ? ? ? 89 06", "8B 0C 85 ? ? ? ? 89 0E");
+        auto p = find_pattern("8B 04 8D ? ? ? ? 89 06", "8B 0C 85 ? ? ? ? 89 0E");
         if (Found(p, "carcols.scannerPrefixes"))
         {
             LimitAdjuster(*p.get_first<uintptr_t>(3), 4, 197, 3)
                 .Named("carcols.scannerPrefixes")
-            .Verbose(gConfig.verboseXrefs)
+                .Verbose(gConfig.verboseXrefs)
                 .ReplaceXrefs(0);
         }
 
@@ -360,17 +341,15 @@ namespace
         {
             LimitAdjuster(*p.get_first<uintptr_t>(3), 4, 196, 3)
                 .Named("carcols.scannerColors")
-            .Verbose(gConfig.verboseXrefs)
+                .Verbose(gConfig.verboseXrefs)
                 .ReplaceXrefs(0);
         }
     }
 
     // WeaponInfo table: 60 entries -> 120.
     //
-    // Verified against this build before shipping: all four signatures match
-    // exactly once, the array resolves to 0x0124A600 in .data, and the twelve
-    // xref offsets total exactly the 16 references upstream expects. That is why
-    // this one is portable while handling/carcols/vehoff are not.
+    // On 1.0.8.0 every signature matches once, the array is 0x0124A600 in .data,
+    // and the twelve xref offsets total the 16 references expected.
     //
     // NOT ported from upstream: FusionFix also installs a safetyhook inline hook
     // on GetWeaponInfoIdByHash to register *custom* (mod-added) weapons into the
@@ -382,12 +361,13 @@ namespace
         auto base = find_pattern("81 C3 ? ? ? ? 89 03", "81 C7 ? ? ? ? 89 07");
         auto r1 = find_pattern("BF ? ? ? ? 8D 64 24 00 8B CE E8 ? ? ? ? 81 C6 ? ? ? ? 4F 79 F0 68 ? ? ? ? E8 ? ? ? ? 83 C4 04 5F 5E C3 56",
                                "BE ? ? ? ? EB 03 8D 49 00 E8 ? ? ? ? 81 C1 ? ? ? ? 83 EE 01 79 F0 68 ? ? ? ? E8 ? ? ? ? 83 C4 04 5E C3");
-        auto r2 = find_pattern("83 F8 3C 7C F1", "83 F8 3C 7C EF");
+        auto r2 = find_pattern("83 F8 ? 7C ? 8B 44 24 ? C3");
 
         if (!Found(base, "weaponinfo") || !Found(r1, "weaponinfo.ref1") || !Found(r2, "weaponinfo.ref2"))
             return;
 
-        auto info = LimitAdjuster(*base.get_first<uintptr_t>(2), 0x110, 60, 16)
+        const uintptr_t array = *base.get_first<uintptr_t>(2);
+        auto info = LimitAdjuster(array, 0x110, 60, 16)
                         .Named("weaponinfo")
                         .Verbose(gConfig.verboseXrefs)
                         .ReplaceXrefs(0, 0x24, 0x1A98, 0x1A9C, 0x1AB4, 0x1B30,
@@ -402,17 +382,29 @@ namespace
             return;
         }
 
-        auto bound = find_pattern("7D 0C 69 C0");
+        // The two loops over every entry's +0x24 field end on `cmp reg, <old end> ;
+        // jl`. That address is also a separate global (one more reference), so
+        // ReplaceXrefs cannot move it; left alone, the loops stop after the first
+        // entry or run off the new table. From FusionFix 76c4cea.
+        const uint32_t oldEnd = uint32_t(array + 0x110 * 60 + 0x24);
+        const uint32_t newEnd = uint32_t(uintptr_t(info.NewArray() + 0x110 * info.NewCount() + 0x24));
+        auto loops = hook::pattern("81 ? " + pattern_str(to_bytes(oldEnd)) + "7C");
+        loops.for_each_result([&](hook::pattern_match m) { injector::WriteMemory(m.get<void>(2), newEnd, true); });
+        TaceLog("[limits] weaponinfo.loops: %zu loop end(s) moved (2 on 1.0.8.0)", loops.size());
+
+        auto bound = find_pattern("8B 44 24 04 83 F8 3C 7D ? 69 C0 10 01 00 00 05");
         if (Found(bound, "weaponinfo.bound"))
         {
-            injector::MakeNOP(bound.get_first(), 2);
+            injector::MakeNOP(bound.get_first(7), 2);
             TaceLog("[limits] weaponinfo.bound: OK - bounds check lifted");
         }
     }
 
     void AdjustVehicleOffsets()
     {
-        auto p = find_pattern("81 C7 ? ? ? ? 83 BB", "81 C7 ? ? ? ? 83 BE");
+        // The first spelling must be this long: shorter, it matches an unrelated
+        // site on 1.0.8.0 before the second is tried.
+        auto p = find_pattern("81 C7 ? ? ? ? 83 BB ? ? ? ? ? 7D", "81 C7 ? ? ? ? 83 BE");
         if (!Found(p, "vehoff"))
             return;
 
@@ -885,13 +877,11 @@ namespace
     // thunk a `jmp`. Null unless both look like that.
     const uint8_t *SavePrimitive(const uint8_t *handler)
     {
-        const uint8_t *call = handler + 0x13;
+        uint8_t *call = const_cast<uint8_t *>(handler) + 0x13;
         if (call[0] != 0xE8)
             return nullptr;
-        const uint8_t *thunk = call + 5 + *reinterpret_cast<const int32_t *>(call + 1);
-        if (thunk[0] != 0xE9)
-            return nullptr;
-        return thunk + 5 + *reinterpret_cast<const int32_t *>(thunk + 1);
+        uint8_t *thunk = CallTarget(call);
+        return thunk[0] == 0xE9 ? CallTarget(thunk) : nullptr;
     }
 
     void AdjustScriptCarGenerators()
@@ -1151,12 +1141,6 @@ void InitializeAllLimitAdjusters()
 
     if (gConfig.enableWeaponInfo) AdjustWeaponInfo();
     else                          TaceLog("[limits] weaponinfo: disabled in ini");
-
-    // WeaponInfo is NOT ported yet. Upstream raises it to 120 entries but also
-    // installs a safetyhook inline hook on GetWeaponInfoIdByHash to register
-    // custom weapons into the enlarged table. This project has no safetyhook
-    // dependency, and moving the array without that hook leaves lookups pointing
-    // into the old table. Needs the hook first.
 
     TaceLog("[limits] ---- done ----");
 }
