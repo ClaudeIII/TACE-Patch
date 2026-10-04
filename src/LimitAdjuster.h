@@ -64,6 +64,10 @@ public:
 
     bool Succeeded() const { return m_patchedXrefs; }
 
+    // The moved array and its element count; valid once Succeeded().
+    uint8_t *NewArray() const { return m_array; }
+    size_t   NewCount() const { return m_elementsCount * m_increaseby; }
+
     template<typename... Offsets>
     LimitAdjuster &ReplaceXrefs(Offsets... offsets)
     {

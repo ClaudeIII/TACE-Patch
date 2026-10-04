@@ -32,6 +32,7 @@ void GateProfile_Init();
 void CoverAnim_Init();
 void Phone_Init();
 void Silenced_Init();
+void ExplosiveRounds_Init();
 
 //requests the animation to be loaded if it hasnt
 bool (*CAnimMgr__HasAnimLoaded)(uint32_t animGroup) = nullptr;
@@ -758,6 +759,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
         // TacePatch has forced open from one that is still episode-locked.
         Phone_Init();   // rewrites a code byte - after every signature search above
         Silenced_Init();   // rewrites a call - likewise
+        ExplosiveRounds_Init();   // rewrites four calls - likewise
         GateProfile_Init();
 
         TaceLog_Summary();

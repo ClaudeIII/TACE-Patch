@@ -9,6 +9,7 @@
 #include <Hooking.Patterns.h>
 
 #include "Config.h"
+#include "Game.h"
 #include "Log.h"
 #include "Patterns.h"
 #include "Weapons.h"
@@ -192,62 +193,30 @@ namespace
     }
 
     // The animation instance currently playing `animId` on this ped, or null.
-    //
-    // A walk of the blender's association list, replicated rather than called:
-    // the game's own lookup is __thiscall with stack arguments, and getting
-    // that wrong is a crash, whereas these reads are harmless. Every offset
-    // below was verified byte-identical between 1.0.8.0 and EFLC 1.1.2.0.
-    //
-    //   ped+0x78      -> blender
-    //   blender+0x1A28-> first node
-    //   node+0x48     == 1 for a live node
-    //   node+4        -> the association
-    //   node+0x8C     -> next node
-    //   assoc+0x40    != 0
-    //   assoc+0x0C    == the animation id
+    // The list is walked rather than the game's lookup called: that one is
+    // __thiscall with stack arguments, and these reads are harmless.
     uint8_t *FindPlayingAnim(uint8_t *ped, uint32_t animId)
     {
-        uint8_t *blender = *reinterpret_cast<uint8_t **>(ped + 0x78);
-        if (!blender)
-            return nullptr;
-
-        uint8_t *node = *reinterpret_cast<uint8_t **>(blender + 0x1A28);
-        for (int guard = 0; node && guard < 256; guard++)
-        {
-            uint8_t *assoc = node + 4;
-            if (*reinterpret_cast<uint16_t *>(node + 0x48) == 1 &&
-                *reinterpret_cast<uint32_t *>(assoc + 0x40) != 0 &&
-                *reinterpret_cast<uint32_t *>(assoc + 0x0C) == animId)
-                return assoc;
-            node = *reinterpret_cast<uint8_t **>(node + 0x8C);
-        }
-        return nullptr;
+        uint8_t *found = nullptr;
+        ForEachLiveAnim(ped, [&](uint8_t *anim) {
+            if (Field<uint32_t>(anim, 0x0C) != animId)
+                return false;
+            found = anim;
+            return true;
+        }, 256);
+        return found;
     }
 
     // Every animation id currently playing on this ped, for diagnosis when a
     // lookup comes up empty.
     void TracePlayingAnims(uint8_t *ped)
     {
-        uint8_t *blender = *reinterpret_cast<uint8_t **>(ped + 0x78);
-        if (!blender)
-        {
-            TACE_TRACE("[cover] ped has no animation blender");
-            return;
-        }
-        uint8_t *node = *reinterpret_cast<uint8_t **>(blender + 0x1A28);
         int n = 0;
-        for (int guard = 0; node && guard < 256; guard++)
-        {
-            uint8_t *assoc = node + 4;
-            if (*reinterpret_cast<uint16_t *>(node + 0x48) == 1 &&
-                *reinterpret_cast<uint32_t *>(assoc + 0x40) != 0)
-            {
-                TACE_TRACE("[cover]   playing id 0x%X",
-                           *reinterpret_cast<uint32_t *>(assoc + 0x0C));
-                n++;
-            }
-            node = *reinterpret_cast<uint8_t **>(node + 0x8C);
-        }
+        ForEachLiveAnim(ped, [&](uint8_t *anim) {
+            TACE_TRACE("[cover]   playing id 0x%X", Field<uint32_t>(anim, 0x0C));
+            n++;
+            return false;
+        }, 256);
         TACE_TRACE("[cover] %d animation(s) playing", n);
     }
 

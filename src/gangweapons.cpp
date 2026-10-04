@@ -83,16 +83,7 @@ namespace
     // "<weapon>,<chance>, <weapon>,<chance>, <weapon>,<chance>"
     bool ParseLoadout(const std::string &value, int weapon[3], int chance[3])
     {
-        std::vector<std::string> parts;
-        size_t start = 0;
-        for (;;)
-        {
-            const size_t comma = value.find(',', start);
-            parts.push_back(TrimToken(value.substr(start, comma - start)));
-            if (comma == std::string::npos)
-                break;
-            start = comma + 1;
-        }
+        const std::vector<std::string> parts = SplitList(value);
         if (parts.size() != 6)
             return false;
 

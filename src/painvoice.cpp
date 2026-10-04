@@ -197,6 +197,16 @@ namespace
         return (i >= 0 && i < gExtraCount) ? &gExtra[i] : nullptr;
     }
 
+    // The configured voice for a ped model, or -1
+    int VoiceForModel(int32_t model)
+    {
+        for (int i = 0; i < gExtraCount; i++)
+            for (int32_t index : gExtra[i].modelIndices)
+                if (index >= 0 && index == model)
+                    return i;
+        return -1;
+    }
+
     // Wave slot names are ours, not the voice's: naming them after the bank root
     // would collide with slot 0's NIKO_0 / NIKO_1 if someone configures "NIKO".
     std::string WaveSlotName(int extraIndex, int half)
@@ -465,20 +475,8 @@ extern "C" int __cdecl PainVoice_PickSlot(void *audioEntity, int gameSlot)
         }
     }
 
-    int chosen  = gameSlot;
-    int matched = -1;
-
-    for (int i = 0; i < gExtraCount && matched < 0; i++)
-    {
-        for (int32_t index : gExtra[i].modelIndices)
-        {
-            if (index >= 0 && index == model)
-            {
-                matched = i;
-                break;
-            }
-        }
-    }
+    int chosen = gameSlot;
+    const int matched = VoiceForModel(model);
 
     // A matched voice whose bank is not resident stays off it: handing playback a
     // slot with nothing in it produces silence, not a voice. This runs for the
@@ -559,14 +557,9 @@ int __fastcall PainVoice_ResolveVoice(void *self, void *, int voice, const char 
 
     const int32_t model = *reinterpret_cast<int16_t *>(ped + 0x2E);
 
-    for (int i = 0; i < gExtraCount; i++)
+    if (const int matched = VoiceForModel(model); matched >= 0)
     {
-        const ExtraSlot &s = gExtra[i];
-        bool match = false;
-        for (int32_t index : s.modelIndices)
-            match = match || (index >= 0 && index == model);
-        if (!match)
-            continue;
+        const ExtraSlot &s = gExtra[matched];
 
         // One-time proof that the hash and the lookup agree with the engine: the
         // generic voice demonstrably HAS whatever context we are being asked
@@ -675,26 +668,10 @@ static void __declspec(naked) PainVoice_PickNameStub()
 
 namespace
 {
-    std::string Trim(std::string s)
-    {
-        while (!s.empty() && (s.front() == ' ' || s.front() == '\t')) s.erase(s.begin());
-        while (!s.empty() && (s.back()  == ' ' || s.back()  == '\t')) s.pop_back();
-        return s;
-    }
-
     // "<bank root>, <variation count>, <model>[, <model>...]"
     bool ParseVoice(const std::string &value, ExtraSlot &s)
     {
-        std::vector<std::string> parts;
-        size_t start = 0;
-        for (;;)
-        {
-            const size_t comma = value.find(',', start);
-            parts.push_back(Trim(value.substr(start, comma - start)));
-            if (comma == std::string::npos)
-                break;
-            start = comma + 1;
-        }
+        const std::vector<std::string> parts = SplitList(value);
 
         if (parts.size() < 3 || parts[0].empty())
             return false;

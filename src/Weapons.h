@@ -4,6 +4,8 @@
 #include <cstring>
 #include <string>
 
+#include "Config.h"
+
 // Weapon ids from the GTA IV weapon enum, shared by the loadout features.
 //
 // The EPISODIC_n names are the engine's own; the aliases beside them are what
@@ -23,12 +25,16 @@ inline const NamedId kWeapons[] = {
     { "EPISODIC_7", 27 },  { "AUTOMATIC_PISTOL", 27 },
     { "EPISODIC_8", 28 },  { "PIPE_BOMB", 28 },
     { "EPISODIC_9", 29 },  { "PISTOL_44", 29 },
+    { "EPISODIC_10", 30 }, { "AA12_EXPLOSIVE", 30 },
     { "EPISODIC_11", 31 }, { "AA12", 31 },
     { "EPISODIC_12", 32 }, { "P90", 32 },
     { "EPISODIC_13", 33 }, { "GOLDEN_UZI", 33 },
     { "EPISODIC_14", 34 }, { "M249", 34 },
     { "EPISODIC_15", 35 }, { "ADVANCED_SNIPER", 35 },
     { "EPISODIC_16", 36 }, { "STICKY_BOMB", 36 },
+    { "EPISODIC_17", 37 }, { "BUZZARD_ROCKETS", 37 },
+    { "EPISODIC_19", 39 }, { "BUZZARD_MINIGUN", 39 },
+    { "EPISODIC_20", 40 }, { "APC_CANNON", 40 },
 };
 
 // Accepts a name from the table above or a plain number.
@@ -67,11 +73,4 @@ inline const char *WeaponName(int id)
         if (w.id == id)
             return w.name;
     return "?";
-}
-
-inline std::string TrimToken(std::string s)
-{
-    while (!s.empty() && (s.front() == ' ' || s.front() == '\t')) s.erase(s.begin());
-    while (!s.empty() && (s.back()  == ' ' || s.back()  == '\t')) s.pop_back();
-    return s;
 }

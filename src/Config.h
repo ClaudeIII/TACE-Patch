@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <cstdlib>
 #include <string>
+#include <vector>
 
 // Shared TacePatch.ini access. Uses the Win32 profile API rather than
 // deps/IniReader: that header needs std::string::starts_with (C++20) and this
@@ -74,4 +75,25 @@ inline int TaceIniInt(const char *section, const char *key, int def)
 inline bool TaceIniBool(const char *section, const char *key, bool def)
 {
     return TaceIniInt(section, key, def ? 1 : 0) != 0;
+}
+
+inline std::string TrimToken(std::string s)
+{
+    while (!s.empty() && (s.front() == ' ' || s.front() == '	')) s.erase(s.begin());
+    while (!s.empty() && (s.back()  == ' ' || s.back()  == '	')) s.pop_back();
+    return s;
+}
+
+// "a, b,c" -> {"a", "b", "c"}, each trimmed; empty entries are kept.
+inline std::vector<std::string> SplitList(const std::string &value, char sep = ',')
+{
+    std::vector<std::string> parts;
+    for (size_t start = 0;;)
+    {
+        const size_t at = value.find(sep, start);
+        parts.push_back(TrimToken(value.substr(start, at - start)));
+        if (at == std::string::npos)
+            return parts;
+        start = at + 1;
+    }
 }
