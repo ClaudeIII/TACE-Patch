@@ -80,6 +80,7 @@ namespace
 
     Loadout gSniper;
     Loadout gHeli;
+    Loadout gBoat;
 
     bool gTrace     = false;
     int  gTraceLeft = 0;
@@ -112,71 +113,39 @@ namespace
         return result;
     }
 
-    // Reads "<weapon>" or "<weapon>, <weapon>[, <weapon>]" from the ini.
-    bool ReadWeaponList(const char *key, std::vector<int> &out, size_t expected)
+    // A comma-separated weapon list. Empty entries are skipped; any entry that
+    // is not a weapon name or id discards the whole key.
+    bool ReadWeapons(const char *key, std::vector<int> &out)
     {
+        out.clear();
         const std::string value = TaceIniString("COPWEAPONS", key);
         if (value.empty())
             return false;
-
-        out.clear();
-        size_t start = 0;
-        for (;;)
+        for (const std::string &token : SplitList(value))
         {
-            const size_t comma = value.find(',', start);
-            const std::string token = TrimToken(value.substr(start, comma - start));
-
             int id = 0;
+            if (token.empty())
+                continue;
             if (!LookUpWeapon(token, id))
-            {
-                TaceLog("[cops] %s: \"%s\" is not a weapon name or id - skipped", key, token.c_str());
-                return false;
-            }
-            out.push_back(id);
-
-            if (comma == std::string::npos)
-                break;
-            start = comma + 1;
-        }
-
-        if (out.size() != expected)
-        {
-            TaceLog("[cops] %s: expected %zu weapon(s), got %zu - skipped",
-                    key, expected, out.size());
-            return false;
-        }
-        return true;
-    }
-
-    // Reads a comma-separated weapon list; absent or unparseable leaves it empty.
-    bool ReadLoadoutKey(const char *key, std::vector<int> &out)
-    {
-        const std::string value = TaceIniString("COPWEAPONS", key);
-        if (value.empty())
-            return false;
-
-        out.clear();
-        size_t start = 0;
-        for (;;)
-        {
-            const size_t comma = value.find(',', start);
-            const std::string token = TrimToken(value.substr(start, comma - start));
-
-            int id = 0;
-            if (!token.empty() && !LookUpWeapon(token, id))
             {
                 TaceLog("[cops] %s: \"%s\" is not a weapon name or id - key ignored", key, token.c_str());
                 out.clear();
                 return false;
             }
-            if (!token.empty())
-                out.push_back(id);
-
-            if (comma == std::string::npos)
-                break;
-            start = comma + 1;
+            out.push_back(id);
         }
         return !out.empty();
+    }
+
+    // Exactly `expected` weapons, for the fixed-size loadouts.
+    bool ReadWeaponList(const char *key, std::vector<int> &out, size_t expected)
+    {
+        if (!ReadWeapons(key, out))
+            return false;
+        if (out.size() == expected)
+            return true;
+        TaceLog("[cops] %s: expected %zu weapon(s), got %zu - skipped", key, expected, out.size());
+        return false;
     }
 
     std::string Describe(const std::vector<int> &v)
@@ -210,6 +179,28 @@ namespace
     }
 }
 
+namespace
+{
+    using GiveWeaponFn = int(__fastcall *)(void *self, void *, int weapon, int ammo, int a4, int a5, int a6);
+
+    // Reads <key> and <key>Extra and, if either is set, routes the giveWeapon
+    // call at `call` through hook. Every site calls the same giveWeapon, so the
+    // first hook installed yields the real target for all of them.
+    void InstallLoadout(Loadout &l, const char *key, uint8_t *call, GiveWeaponFn hook, const char *who)
+    {
+        const std::string extra = std::string(key) + "Extra";
+        ReadWeapons(key, l.pick);
+        ReadWeapons(extra.c_str(), l.extra);
+        if (!l.active())
+            return;
+        auto prev = injector::MakeCALL(call, hook, true).get();
+        if (OrigGiveWeapon == nullptr)
+            OrigGiveWeapon = prev;
+        TaceLog("[cops] %s: one of [%s]%s%s", who, Describe(l.pick).c_str(), l.extra.empty() ? "" : " plus ",
+                l.extra.empty() ? "" : Describe(l.extra).c_str());
+    }
+}
+
 int __fastcall CopWeapons_GiveSniper(void *self, void *, int weapon, int ammo, int a4, int a5, int a6)
 {
     return ApplyLoadout(gSniper, "rooftop sniper", self, weapon, ammo, a4, a5, a6);
@@ -218,6 +209,11 @@ int __fastcall CopWeapons_GiveSniper(void *self, void *, int weapon, int ammo, i
 int __fastcall CopWeapons_GiveHeli(void *self, void *, int weapon, int ammo, int a4, int a5, int a6)
 {
     return ApplyLoadout(gHeli, "helicopter crewman", self, weapon, ammo, a4, a5, a6);
+}
+
+int __fastcall CopWeapons_GiveBoat(void *self, void *, int weapon, int ammo, int a4, int a5, int a6)
+{
+    return ApplyLoadout(gBoat, "police boat crewman", self, weapon, ammo, a4, a5, a6);
 }
 
 void CopWeapons_Init()
@@ -256,6 +252,12 @@ void CopWeapons_Init()
     auto heli      = find_pattern("83 3D ? ? ? ? ? 6A 00 6A 00 6A 01 8B CF 68 A8 61 00 00 ? ? "
                                   "6A 22 EB ? 6A 0F E8 ? ? ? ?");
 
+    // Police boat (predator) passengers, in CVehiclePopulation::AddPoliceCarOccupants:
+    // 1-4 of them, each given an M4 - mov eax,[ebx] ; test eax,eax ; jz ; push 0/0/1 ;
+    // push 25000 ; push 0Fh ; lea ecx,[eax+2B0h] ; call giveWeapon. The driver keeps
+    // the ordinary cop's weapon.
+    auto boat      = find_pattern("8B 03 85 C0 74 ? 6A 00 6A 00 6A 01 68 A8 61 00 00 6A 0F 8D 88 B0 02 00 00 E8");
+
     const struct { const char *what; bool missing; } required[] = {
         { "ordinary cop weapon", copWeapon.empty() },
         { "ordinary cop accuracy", copAcc.empty() },
@@ -265,6 +267,7 @@ void CopWeapons_Init()
         { "SWAT accuracy", swatAcc.empty() },
         { "helicopter crew weapon", heli.empty() },
         { "rooftop sniper weapon", sniper.empty() },
+        { "police boat crew weapon", boat.empty() },
     };
     bool ok = true;
     for (const auto &r : required)
@@ -319,35 +322,14 @@ void CopWeapons_Init()
         PatchByte(swatEp2.get_first<uint8_t>(26), 32, static_cast<uint8_t>(w[2]), "SWAT primary (TBoGT) alt 2");
     }
 
-    // Helicopter crews. Hooking the call rather than the pushed id means the
-    // episode branch above it becomes irrelevant - whichever weapon it selects
-    // is overwritten before giveWeapon sees it.
-    ReadLoadoutKey("HeliCop", gHeli.pick);
-    ReadLoadoutKey("HeliCopExtra", gHeli.extra);
-    if (gHeli.active())
-    {
-        // Both sites call the same giveWeapon, so whichever hook is installed
-        // first yields the real target for both.
-        auto prev = injector::MakeCALL(heli.get_first(28), CopWeapons_GiveHeli, true).get();
-        if (OrigGiveWeapon == nullptr)
-            OrigGiveWeapon = prev;
-        TaceLog("[cops] helicopter crew: one of [%s]%s%s", Describe(gHeli.pick).c_str(),
-                gHeli.extra.empty() ? "" : " plus ",
-                gHeli.extra.empty() ? "" : Describe(gHeli.extra).c_str());
-    }
-
-    // Rooftop snipers and helicopter crews take a list, so they are hooked at the
-    // giveWeapon call instead of having their pushed weapon id rewritten. One
-    // weapon is picked at random from the list, plus any Extra on top.
-    ReadLoadoutKey("RooftopSniper", gSniper.pick);
-    ReadLoadoutKey("RooftopSniperExtra", gSniper.extra);
-    if (gSniper.active())
-    {
-        OrigGiveWeapon = injector::MakeCALL(sniper.get_first(19), CopWeapons_GiveSniper, true).get();
-        TaceLog("[cops] rooftop sniper: one of [%s]%s%s", Describe(gSniper.pick).c_str(),
-                gSniper.extra.empty() ? "" : " plus ",
-                gSniper.extra.empty() ? "" : Describe(gSniper.extra).c_str());
-    }
+    // Rooftop snipers, helicopter crews and police boat crews take a list, so
+    // they are hooked at the giveWeapon call instead of having their pushed
+    // weapon id rewritten: one weapon is picked at random from the list, plus
+    // any Extra on top. For the helicopter this also makes its episode branch
+    // irrelevant - whichever weapon it selects is overwritten.
+    InstallLoadout(gSniper, "RooftopSniper", sniper.get_first<uint8_t>(19), CopWeapons_GiveSniper, "rooftop sniper");
+    InstallLoadout(gHeli, "HeliCop", heli.get_first<uint8_t>(28), CopWeapons_GiveHeli, "helicopter crew");
+    InstallLoadout(gBoat, "BoatCop", boat.get_first<uint8_t>(25), CopWeapons_GiveBoat, "police boat crew");
 
     // --- chances and accuracy ---
     const int chance = TaceIniInt("COPWEAPONS", "SwatSecondaryChance", -1);
