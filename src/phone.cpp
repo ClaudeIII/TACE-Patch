@@ -9,6 +9,7 @@
 #include <Hooking.Patterns.h>
 
 #include "Config.h"
+#include "Game.h"
 #include "Log.h"
 #include "Patterns.h"
 
@@ -76,21 +77,27 @@ namespace
     bool gTrace = false;
     bool gPedsInCalls = false;   // extend the movement fixes to NPCs on the phone
 
-    template<typename T>
-    T Field(const void *base, size_t offset)
-    {
-        return *reinterpret_cast<const T *>(static_cast<const uint8_t *>(base) + offset);
-    }
-
-    bool IsPlayer(uint8_t *ped)
+    bool IsPlayer(const uint8_t *ped)
     {
         return Field<void *>(ped, kPedPlayerInfo) != nullptr;
     }
 
-    int TaskType(const void *task)
+    // The first task of `type` in a task and its subtasks, or null.
+    void *FindInChain(const void *task, int type)
     {
-        using GetTypeFn = int(__thiscall *)(const void *);
-        return (*reinterpret_cast<GetTypeFn *const *>(task))[3](task);   // vtable +0x0C
+        for (; task != nullptr; task = Field<void *>(task, kTaskSubTask))
+            if (TaskType(task) == type)
+                return const_cast<void *>(task);
+        return nullptr;
+    }
+
+    // The first task of `type` in `count` task slots from intel + base, or null.
+    void *FindInSlots(const uint8_t *intel, size_t base, int count, int type)
+    {
+        for (int slot = 0; intel != nullptr && slot < count; slot++)
+            if (void *t = FindInChain(Field<void *>(intel, base + 4 * slot), type))
+                return t;
+        return nullptr;
     }
 
     bool HasPhoneTask(uint8_t *ped);
@@ -140,7 +147,7 @@ namespace
             return;
         }
 
-        gStandStill = reinterpret_cast<StandStillFn>(call + 5 + *reinterpret_cast<int32_t *>(call + 1));
+        gStandStill = reinterpret_cast<StandStillFn>(CallTarget(call));
         injector::MakeCALL(call, StandStillHook, true);
         TaceLog("[phone] OK - the player no longer stands still when a call starts");
     }
@@ -154,15 +161,7 @@ namespace
     // way CTaskManager::findPrimarySubTaskByID does.
     bool HasPhoneTask(uint8_t *ped)
     {
-        const uint8_t *intel = Field<uint8_t *>(ped, kPedIntelligence);
-        if (intel == nullptr)
-            return false;
-        for (int slot = 0; slot < 5; slot++)
-            for (const void *t = Field<void *>(intel, kIntelPrimary + 4 * slot); t != nullptr;
-                 t = Field<void *>(t, kTaskSubTask))
-                if (TaskType(t) == kTypeUsePhone)
-                    return true;
-        return false;
+        return FindInSlots(Field<uint8_t *>(ped, kPedIntelligence), kIntelPrimary, 5, kTypeUsePhone) != nullptr;
     }
 
     // Run the game's own process with ped flags5 0x400 set - the flag it
@@ -201,31 +200,16 @@ namespace
             TaceLog("[phone] phone move stand-in: signature not found, not patched");
             return;
         }
-        const uint32_t process = uint32_t(uintptr_t(pattern.get_first<void>(0)));
-
-        // Its one vtable slot: the function's address as data, outside the code.
-        auto *mod = reinterpret_cast<uint8_t *>(GetModuleHandleA(nullptr));
-        auto *nt  = reinterpret_cast<IMAGE_NT_HEADERS *>(mod + reinterpret_cast<IMAGE_DOS_HEADER *>(mod)->e_lfanew);
-        uint32_t *slot = nullptr;
+        void *process = pattern.get_first<void>(0);
         int found = 0;
-        const IMAGE_SECTION_HEADER *sec = IMAGE_FIRST_SECTION(nt);
-        for (WORD i = 0; i < nt->FileHeader.NumberOfSections; i++, sec++)
-        {
-            if (sec->Characteristics & IMAGE_SCN_MEM_EXECUTE)
-                continue;
-            auto *p   = reinterpret_cast<uint32_t *>(mod + sec->VirtualAddress);
-            auto *end = reinterpret_cast<uint32_t *>(mod + sec->VirtualAddress + (sec->Misc.VirtualSize & ~3u));
-            for (; p < end; p++)
-                if (*p == process && found++ == 0)
-                    slot = p;
-        }
-        if (found != 1)
+        uint32_t *slot = FindDataSlot(process, found);
+        if (slot == nullptr)
         {
             TaceLog("[phone] ABORTED - the phone move stand-in has %d vtable slots, expected 1. Not patched.", found);
             return;
         }
 
-        gDoNothingProcess = reinterpret_cast<TaskProcessFn>(uintptr_t(process));
+        gDoNothingProcess = reinterpret_cast<TaskProcessFn>(process);
         injector::WriteMemory<uint32_t>(slot, uint32_t(uintptr_t(&DoNothingProcessHook)), true);
         TaceLog("[phone] OK - answering a call keeps the player's momentum");
     }
@@ -263,43 +247,10 @@ namespace
     RunningThreadFn  gRunningThread  = nullptr;
     ScriptNameFn     gScriptName     = nullptr;
 
-    uint8_t *CallTarget(uint8_t *call)
-    {
-        return call + 5 + *reinterpret_cast<int32_t *>(call + 1);
-    }
-
-    template<typename F>
-    void ForEachExecSection(F visit)
-    {
-        auto *mod = reinterpret_cast<uint8_t *>(GetModuleHandleA(nullptr));
-        auto *nt  = reinterpret_cast<IMAGE_NT_HEADERS *>(mod + reinterpret_cast<IMAGE_DOS_HEADER *>(mod)->e_lfanew);
-        const IMAGE_SECTION_HEADER *sec = IMAGE_FIRST_SECTION(nt);
-        for (WORD i = 0; i < nt->FileHeader.NumberOfSections; i++, sec++)
-            if ((sec->Characteristics & IMAGE_SCN_MEM_EXECUTE) && sec->Misc.VirtualSize >= 5)
-                visit(mod + sec->VirtualAddress, size_t(sec->Misc.VirtualSize));
-    }
-
-    // Every `call rel32` to target in the game's code: returns how many, keeps
-    // the first max.
     // How many call sites of one function the callers below can record. Each of
     // them patches every site it finds, so a count outside what the known builds
     // hold is reported rather than assumed.
     constexpr int kMaxEntrySites = 8;
-
-    int CallersOf(const uint8_t *target, uint8_t **sites, int max)
-    {
-        int count = 0;
-        ForEachExecSection([&](uint8_t *begin, size_t size) {
-            for (uint8_t *p = begin, *end = begin + size - 5; p <= end; p++)
-                if (*p == 0xE8 && CallTarget(p) == target)
-                {
-                    if (count < max)
-                        sites[count] = p;
-                    count++;
-                }
-        });
-        return count;
-    }
 
     bool IsPhoneScript(const char *name)
     {
@@ -312,18 +263,26 @@ namespace
 
     // In cover and nothing outranks it: every task slot above the default one
     // (CTaskComplexPlayerOnFoot) empty, and CTaskComplexPlayerInCover in that.
-    bool OnlyInCover(uint8_t *ped)
+    // The default primary slot, the one his on-foot or driving tree runs in
+    void *DefaultTree(const uint8_t *ped)
     {
         const uint8_t *intel = Field<uint8_t *>(ped, kPedIntelligence);
-        if (intel == nullptr)
-            return false;
+        return intel != nullptr ? Field<void *>(intel, kIntelPrimary + 4 * 4) : nullptr;
+    }
+
+    // Nothing in the four primary slots above the default one
+    bool NothingAboveDefault(const uint8_t *intel)
+    {
         for (int slot = 0; slot < 4; slot++)
             if (Field<void *>(intel, kIntelPrimary + 4 * slot) != nullptr)
                 return false;
-        for (const void *t = Field<void *>(intel, kIntelPrimary + 4 * 4); t != nullptr; t = Field<void *>(t, kTaskSubTask))
-            if (TaskType(t) == kTypePlayerInCover)
-                return true;
-        return false;
+        return true;
+    }
+
+    bool OnlyInCover(uint8_t *ped)
+    {
+        const uint8_t *intel = Field<uint8_t *>(ped, kPedIntelligence);
+        return intel != nullptr && NothingAboveDefault(intel) && FindInChain(DefaultTree(ped), kTypePlayerInCover) != nullptr;
     }
 
     // On foot and nothing outranks it: his default task (CTaskComplexPlayerOnFoot)
@@ -337,12 +296,9 @@ namespace
     bool OnFootOnly(const uint8_t *ped)
     {
         const uint8_t *intel = Field<uint8_t *>(ped, kPedIntelligence);
-        if (intel == nullptr || (Field<uint8_t>(ped, kPedFlagsInVehicle) & 4) != 0)
+        if (intel == nullptr || (Field<uint8_t>(ped, kPedFlagsInVehicle) & 4) != 0 || !NothingAboveDefault(intel))
             return false;
-        for (int slot = 0; slot < 4; slot++)
-            if (Field<void *>(intel, kIntelPrimary + 4 * slot) != nullptr)
-                return false;
-        const void *top = Field<void *>(intel, kIntelPrimary + 4 * 4);
+        const void *top = DefaultTree(ped);
         return top != nullptr && TaskType(top) == kTypePlayerOnFoot;
     }
 
@@ -355,27 +311,14 @@ namespace
 
     bool EnteringVehicle(const uint8_t *ped)
     {
-        const uint8_t *intel = Field<uint8_t *>(ped, kPedIntelligence);
-        if (intel == nullptr)
-            return false;
-        for (int slot = 0; slot < 5; slot++)
-            for (const void *t = Field<void *>(intel, kIntelPrimary + 4 * slot); t != nullptr;
-                 t = Field<void *>(t, kTaskSubTask))
-                if (TaskType(t) == kTypeGetInVehicle)
-                    return true;
-        return false;
+        return FindInSlots(Field<uint8_t *>(ped, kPedIntelligence), kIntelPrimary, 5, kTypeGetInVehicle) != nullptr;
     }
 
     // CTaskComplexNewUseCover's state, or -1 when it is not running
     int CoverState(const uint8_t *ped)
     {
-        int state = -1;
-        const uint8_t *intel = Field<uint8_t *>(ped, kPedIntelligence);
-        for (const void *t = intel != nullptr ? Field<void *>(intel, kIntelPrimary + 4 * 4) : nullptr; t != nullptr;
-             t = Field<void *>(t, kTaskSubTask))
-            if (TaskType(t) == kTypeNewUseCover)
-                state = Field<int>(t, kUseCoverState);
-        return state;
+        const void *cover = FindInChain(DefaultTree(ped), kTypeNewUseCover);
+        return cover != nullptr ? Field<int>(cover, kUseCoverState) : -1;
     }
 
     // "slots - - - - 8>1046>... | info 1054/2 ..." for the trace
@@ -650,13 +593,7 @@ namespace
 
     void *SecondaryTask(const uint8_t *intel, int type)
     {
-        if (intel == nullptr)
-            return nullptr;
-        for (int slot = 0; slot < 6; slot++)
-            for (void *t = Field<void *>(intel, kIntelSecondary + 4 * slot); t != nullptr; t = Field<void *>(t, kTaskSubTask))
-                if (TaskType(t) == type)
-                    return t;
-        return nullptr;
+        return FindInSlots(intel, kIntelSecondary, 6, type);
     }
 
     void *SidePhone(const uint8_t *ped)
@@ -667,9 +604,7 @@ namespace
         if (void *phone = SecondaryTask(intel, kTypeUsePhone))
             return phone;
         if (gCallInPrimary && intel != nullptr)
-            for (void *t = Field<void *>(intel, kIntelPrimary + 4 * kScriptSlot); t != nullptr; t = Field<void *>(t, kTaskSubTask))
-                if (TaskType(t) == kTypeUsePhone)
-                    return t;
+            return FindInChain(Field<void *>(intel, kIntelPrimary + 4 * kScriptSlot), kTypeUsePhone);
         return nullptr;
     }
 
@@ -952,12 +887,7 @@ namespace
 
     bool StartingCar(const uint8_t *ped)
     {
-        const uint8_t *intel = Field<uint8_t *>(ped, kPedIntelligence);
-        for (const void *t = intel != nullptr ? Field<void *>(intel, kIntelPrimary + 4 * 4) : nullptr; t != nullptr;
-             t = Field<void *>(t, kTaskSubTask))
-            if (TaskType(t) == kTypeStartCar)
-                return true;
-        return false;
+        return FindInChain(DefaultTree(ped), kTypeStartCar) != nullptr;
     }
 
     // ---- the call pauses for vehicle animations ----------------------------
@@ -1076,29 +1006,6 @@ namespace
             if (!abort(step, ped, 1, nullptr))
                 abort(step, ped, 2, nullptr);
         }
-    }
-
-    // The one pointer to fn outside the game's code - its vtable slot. Null
-    // unless there is exactly one.
-    uint32_t *OnlyDataSlot(const void *fn, int &found)
-    {
-        const uint32_t value = uint32_t(uintptr_t(fn));
-        auto *mod = reinterpret_cast<uint8_t *>(GetModuleHandleA(nullptr));
-        auto *nt  = reinterpret_cast<IMAGE_NT_HEADERS *>(mod + reinterpret_cast<IMAGE_DOS_HEADER *>(mod)->e_lfanew);
-        const IMAGE_SECTION_HEADER *sec = IMAGE_FIRST_SECTION(nt);
-        uint32_t *slot = nullptr;
-        found = 0;
-        for (WORD i = 0; i < nt->FileHeader.NumberOfSections; i++, sec++)
-        {
-            if (sec->Characteristics & IMAGE_SCN_MEM_EXECUTE)
-                continue;
-            auto *p   = reinterpret_cast<uint32_t *>(mod + sec->VirtualAddress);
-            auto *end = reinterpret_cast<uint32_t *>(mod + sec->VirtualAddress + (sec->Misc.VirtualSize & ~3u));
-            for (; p < end; p++)
-                if (*p == value && found++ == 0)
-                    slot = p;
-        }
-        return found == 1 ? slot : nullptr;
     }
 
     // The cover code's "where along the cover?" helper (EFLC sub_AC3CB0, three
@@ -1239,7 +1146,7 @@ namespace
         auto next = find_pattern("56 8B F1 8B 4E 08 8B 01 8B 50 0C 57 33 FF FF D2 3D 42 06 00 00 0F 8F ? ? ? ? "
                                  "0F 84 ? ? ? ? 3D CA 00 00 00 74 ? 3D 41 06 00 00");
         int nextSlots = 0;
-        uint32_t *nextSlot = next.empty() ? nullptr : OnlyDataSlot(next.get_first<void>(0), nextSlots);
+        uint32_t *nextSlot = next.empty() ? nullptr : FindDataSlot(next.get_first<void>(0), nextSlots);
         if (nextSlot != nullptr)
         {
             gPhoneNext = reinterpret_cast<NextSubTaskFn>(next.get_first<void>(0));
@@ -1584,7 +1491,6 @@ namespace
     IdlesControlFn gIdlesFirst   = nullptr;   // its createFirstSubTask: ControlMovement(MovePlayer, PlayRandomAmbients)
     IdlesDropFn    gIdlesDrop    = nullptr;
     constexpr int  kTypeControlMovement = 285;   // CTaskComplexControlMovement
-    constexpr size_t kPedAnimBlender = 0x78;
     using BlendRateFn = void(__thiscall *)(uint8_t *anim, float rate);
     BlendRateFn    gBlendRate    = nullptr;   // an anim's blend in / out rate - what RunAnim::makeAbortable blends out with
 
@@ -1641,33 +1547,29 @@ namespace
             if (step != nullptr && TaskType(step) == kTypeRunAnim)
                 return;   // the phone task's own wait pose while the phone model streams in
         }
-        const uint8_t *blender = Field<uint8_t *>(ped, kPedAnimBlender);
-        uint8_t *node = blender != nullptr ? Field<uint8_t *>(blender, 0x1A28) : nullptr;
-        for (int n = 0; node != nullptr && n < 64; node = Field<uint8_t *>(node, 0x8C), n++)
-        {
-            uint8_t *anim = node + 4;
-            if (Field<uint16_t>(node, 0x48) != 1 || Field<void *>(anim, 0x40) == nullptr || Field<int>(anim, 0x0C) != kAnimPhoneText
-                || (Field<uint32_t>(anim, 0x04) & kBoneMaskBits) != kHeadNeckRArm)
-                continue;
+        ForEachLiveAnim(ped, [&](uint8_t *anim) {
+            if (Field<int>(anim, 0x0C) != kAnimPhoneText || (Field<uint32_t>(anim, 0x04) & kBoneMaskBits) != kHeadNeckRArm)
+                return false;
             const uint32_t group = Field<uint32_t>(anim, 0x08);
             if (group != 3 && !(call && group == kPhoneBlendGroup && !gTextPose))
-                continue;   // group 4 outside a call is the pose in cover
+                return false;   // group 4 outside a call is the pose in cover
             const float weight = Field<float>(anim, 0x34);
             const bool  again  = anim == faded && weight > fadedWeight + 0.001f;
             if (anim == faded && !again)
             {
                 fadedWeight = weight;   // fading out
-                continue;
+                return false;
             }
             if (weight <= 0.0f)
-                continue;
+                return false;
             gBlendRate(anim, -4.0f);
             if (gTrace && (!again || raised++ < 10))
                 TaceLog("[phone] CellPHONE_text left playing with no pose task (w%.2f%s) - blended out", weight,
                         again ? ", raised again" : "");
             faded = anim;
             fadedWeight = weight;
-        }
+            return false;
+        });
     }
 
     void *__fastcall IdlesControlHook(uint8_t *task, void *, uint8_t *ped)
@@ -1715,7 +1617,7 @@ namespace
             return;
         }
         int slots = 0;
-        uint32_t *slot = OnlyDataSlot(control.get_first<void>(0), slots);
+        uint32_t *slot = FindDataSlot(control.get_first<void>(0), slots);
         uint8_t *dropCall = drop.get_first<uint8_t>(22);
         if (slot == nullptr || *dropCall != 0xE8)
         {
@@ -1854,6 +1756,21 @@ namespace
     LeaveCoverFn gLeaveCover = nullptr;
     uintptr_t    gModule = 0, gTextBegin = 0, gTextEnd = 0;
 
+    // The game's first code section, for telling return addresses apart
+    void FindCodeRange()
+    {
+        if (gTextBegin != 0)
+            return;
+        gModule = uintptr_t(GetModuleHandleA(nullptr));
+        ForEachSection([](const IMAGE_SECTION_HEADER &sec, uint8_t *begin) {
+            if (gTextBegin == 0 && (sec.Characteristics & IMAGE_SCN_MEM_EXECUTE) && sec.Misc.VirtualSize >= 5)
+            {
+                gTextBegin = uintptr_t(begin);
+                gTextEnd   = gTextBegin + sec.Misc.VirtualSize;
+            }
+        });
+    }
+
     // The controls that fired that frame, read the way the game does (EFLC
     // sub_49EBB0): 16 bytes per control id from CPad +9880, "just pressed" =
     // the high bit of +4 differs from +6 and matches +7. Cover is id 28.
@@ -1938,6 +1855,19 @@ namespace
         gReleaseCoverPoint(ped);
     }
 
+    // fn's first len bytes (no relative operands) in executable memory, then a jmp back past them
+    uint8_t *Trampoline(uint8_t *fn, int len)
+    {
+        auto *tramp = static_cast<uint8_t *>(VirtualAlloc(nullptr, 32, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE));
+        if (tramp == nullptr)
+            return nullptr;
+        for (int i = 0; i < len; i++)
+            tramp[i] = fn[i];
+        tramp[len] = 0xE9;
+        *reinterpret_cast<int32_t *>(tramp + len + 1) = int32_t((fn + len) - (tramp + len + 5));
+        return tramp;
+    }
+
     void TraceLeavingCover()
     {
         // push esi ; mov esi,[esp+8] ; push edi ; mov edi,ecx ; mov ecx,esi ; call ; mov ecx,esi ;
@@ -1958,14 +1888,7 @@ namespace
             return;
         }
 
-        gModule = uintptr_t(GetModuleHandleA(nullptr));
-        ForEachExecSection([](uint8_t *begin, size_t size) {
-            if (gTextBegin == 0)
-            {
-                gTextBegin = uintptr_t(begin);
-                gTextEnd   = gTextBegin + size;
-            }
-        });
+        FindCodeRange();
         // sub_A15320: cmp byte [ecx+218h],0 ; jnz ; cmp byte [ecx+219h],0 ; jz ; jmp <pad> ; xor eax,eax ; ret
         auto pad = find_pattern("80 B9 18 02 00 00 00 75 0E 80 B9 19 02 00 00 00 74 05 E9 ? ? ? ? 33 C0 C3");
         if (!pad.empty())
@@ -1975,17 +1898,11 @@ namespace
         // CPed::releaseCoverPoint: push esi ; mov esi,ecx ; mov ecx,[esi+0D78h] ; test ecx,ecx ; jz ;
         // push esi ; call ; xorps xmm0,xmm0 ; mov dword [esi+0D78h],0
         auto release = find_pattern("56 8B F1 8B 8E 78 0D 00 00 85 C9 74 2B 56 E8 ? ? ? ? 0F 57 C0 C7 86 78 0D 00 00 00 00 00 00");
-        auto *tramp = release.empty() ? nullptr
-                    : static_cast<uint8_t *>(VirtualAlloc(nullptr, 16, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE));
+        uint8_t *tramp = release.empty() ? nullptr : Trampoline(release.get_first<uint8_t>(0), 9);
         if (tramp != nullptr)
         {
-            uint8_t *rel = release.get_first<uint8_t>(0);
-            for (int i = 0; i < 9; i++)
-                tramp[i] = rel[i];
-            tramp[9] = 0xE9;   // jmp back past the moved bytes
-            *reinterpret_cast<int32_t *>(tramp + 10) = int32_t((rel + 9) - (tramp + 14));
             gReleaseCoverPoint = reinterpret_cast<ReleaseCoverPointFn>(tramp);
-            injector::MakeJMP(rel, ReleaseCoverPointHook, true);
+            injector::MakeJMP(release.get_first<void>(0), ReleaseCoverPointHook, true);
         }
         else
         {
@@ -2085,19 +2002,6 @@ namespace
         gAnimBlend(anim, rate);
     }
 
-    // fn's first len bytes (no relative operands) in executable memory, then a jmp back past them
-    uint8_t *Trampoline(uint8_t *fn, int len)
-    {
-        auto *tramp = static_cast<uint8_t *>(VirtualAlloc(nullptr, 32, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE));
-        if (tramp == nullptr)
-            return nullptr;
-        for (int i = 0; i < len; i++)
-            tramp[i] = fn[i];
-        tramp[len] = 0xE9;
-        *reinterpret_cast<int32_t *>(tramp + len + 1) = int32_t((fn + len) - (tramp + len + 5));
-        return tramp;
-    }
-
     void TraceAnimStarts()
     {
         // sub esp,0Ch ; push ebx ; mov ebx,[esp+18h] ; ... mov ebp,ecx (the blender) ; call <find the anim>
@@ -2110,17 +2014,7 @@ namespace
             TaceLog("[phone] CellPHONE_text trace: signature not found, not armed");
             return;
         }
-        if (gTextBegin == 0)
-        {
-            gModule = uintptr_t(GetModuleHandleA(nullptr));
-            ForEachExecSection([](uint8_t *begin, size_t size) {
-                if (gTextBegin == 0)
-                {
-                    gTextBegin = uintptr_t(begin);
-                    gTextEnd   = gTextBegin + size;
-                }
-            });
-        }
+        FindCodeRange();
         gAnimStart = reinterpret_cast<AnimStartFn>(Trampoline(start.get_first<uint8_t>(0), 8));
         gAnimBlend = reinterpret_cast<AnimBlendFn>(Trampoline(blend.get_first<uint8_t>(0), 6));
         if (gAnimStart == nullptr || gAnimBlend == nullptr)
@@ -2135,16 +2029,6 @@ namespace
     using RequestedSpeedFn = float(__thiscall *)(void *ped, int a2, int a3);
     RequestedSpeedFn gRequestedSpeed = nullptr;
 
-    bool PhoneInHand(uint8_t *ped)
-    {
-        const uint8_t *object = Field<uint8_t *>(ped, kPedWeaponObject);
-        if (object == nullptr)
-            return false;
-        using ModelFn = int(__thiscall *)(void *);
-        const ModelFn phoneModel = (*reinterpret_cast<ModelFn **>(ped))[kPhoneModelVfunc / 4];
-        return Field<int16_t>(object, 0x2E) == phoneModel(ped);
-    }
-
     // Observation only: the speed goes back to the game unchanged.
     float __fastcall RequestedSpeedHook(uint8_t *ped, void *, int a2, int a3)
     {
@@ -2153,7 +2037,7 @@ namespace
             return speed;
         const uint8_t *wanted = Field<uint8_t *>(ped, kPedPlayerInfo) + kInfoWanted;
 
-        const bool  inHand    = PhoneInHand(ped);
+        const bool  inHand    = HoldingPhone(ped);
         const int   moveState = Field<int>(ped, kPedMoveState);
         const float stamina   = Field<float>(wanted, kSprintStamina);
         const float level     = Field<float>(wanted, kSprintLevel);
@@ -2256,7 +2140,7 @@ namespace
             TaceLog("[phone] ABORTED - the gesture's phone check is not a call here. Not patched.");
             return;
         }
-        gIsTaskActive = reinterpret_cast<IsTaskActiveFn>(call + 5 + *reinterpret_cast<int32_t *>(call + 1));
+        gIsTaskActive = reinterpret_cast<IsTaskActiveFn>(CallTarget(call));
         injector::MakeCALL(call, GestureSeesPhoneHook, true);
         TaceLog("[phone] OK - speech gestures know about a call in cover (the phone stays at his ear)");
     }
@@ -2319,7 +2203,7 @@ void Phone_Init()
         if (gTrace)
         {
             uint8_t *call = pattern.get_first<uint8_t>(29);   // call <requested speed>
-            gRequestedSpeed = reinterpret_cast<RequestedSpeedFn>(call + 5 + *reinterpret_cast<int32_t *>(call + 1));
+            gRequestedSpeed = reinterpret_cast<RequestedSpeedFn>(CallTarget(call));
             injector::MakeCALL(call, RequestedSpeedHook, true);
             TaceLog("[phone] trace armed - the player's requested speed is logged while the phone is out");
         }

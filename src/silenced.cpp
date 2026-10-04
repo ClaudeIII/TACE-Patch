@@ -9,6 +9,7 @@
 #include <Hooking.Patterns.h>
 
 #include "Config.h"
+#include "Game.h"
 #include "Log.h"
 #include "Patterns.h"
 
@@ -66,12 +67,6 @@ namespace
     float gHearRange = 0.0f;
     float gSeeRange = 0.0f;
     float gSeeCos = 0.0f;
-
-    template<typename T>
-    T Field(const void *base, size_t offset)
-    {
-        return *reinterpret_cast<const T *>(static_cast<const uint8_t *>(base) + offset);
-    }
 
     const float *Position(const uint8_t *entity)
     {
@@ -143,8 +138,8 @@ namespace
             return;
         }
 
-        gWeaponInfo  = reinterpret_cast<WeaponInfoFn>(info + 5 + *reinterpret_cast<int32_t *>(info + 1));
-        gShockingAdd = reinterpret_cast<ShockingAddFn>(call + 5 + *reinterpret_cast<int32_t *>(call + 1));
+        gWeaponInfo  = reinterpret_cast<WeaponInfoFn>(CallTarget(info));
+        gShockingAdd = reinterpret_cast<ShockingAddFn>(CallTarget(call));
         injector::MakeCALL(call, ShockingAddHook, true);
         TaceLog("[silenced] OK - a silenced shot no longer sets off the 100 m GunshotFired panic");
     }
@@ -224,32 +219,18 @@ namespace
             TaceLog("[silenced] gunshot event affectsPed: signature not found, not patched");
             return;
         }
-        const uint32_t fn = uint32_t(uintptr_t(pattern.get_first<void>(0)));
-
-        // Its one vtable slot (CEventGunShot's): the function's address as data,
-        // outside the code. The whizzed-by and bullet-impact events have their own.
-        auto *mod = reinterpret_cast<uint8_t *>(GetModuleHandleA(nullptr));
-        auto *nt  = reinterpret_cast<IMAGE_NT_HEADERS *>(mod + reinterpret_cast<IMAGE_DOS_HEADER *>(mod)->e_lfanew);
-        uint32_t *slot = nullptr;
+        // Its one vtable slot (CEventGunShot's). The whizzed-by and bullet-impact
+        // events have their own.
+        void *fn = pattern.get_first<void>(0);
         int found = 0;
-        const IMAGE_SECTION_HEADER *sec = IMAGE_FIRST_SECTION(nt);
-        for (WORD i = 0; i < nt->FileHeader.NumberOfSections; i++, sec++)
-        {
-            if (sec->Characteristics & IMAGE_SCN_MEM_EXECUTE)
-                continue;
-            auto *p   = reinterpret_cast<uint32_t *>(mod + sec->VirtualAddress);
-            auto *end = reinterpret_cast<uint32_t *>(mod + sec->VirtualAddress + (sec->Misc.VirtualSize & ~3u));
-            for (; p < end; p++)
-                if (*p == fn && found++ == 0)
-                    slot = p;
-        }
+        uint32_t *slot = FindDataSlot(fn, found);
         if (found != 1)
         {
             TaceLog("[silenced] ABORTED - the gunshot event's affectsPed has %d vtable slots, expected 1. Not patched.", found);
             return;
         }
 
-        gAffectsPed = reinterpret_cast<AffectsPedFn>(uintptr_t(fn));
+        gAffectsPed = reinterpret_cast<AffectsPedFn>(fn);
         injector::WriteMemory<uint32_t>(slot, uint32_t(uintptr_t(&AffectsPedHook)), true);
         TaceLog("[silenced] OK - a silenced shot is heard within %.0f m, and seen within %.0f m by peds looking at it",
                 gHearRange, gSeeRange);
